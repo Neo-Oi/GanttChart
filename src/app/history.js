@@ -20,26 +20,29 @@ const History = (() => {
 
   function canUndo() { return uiState.undoStack.length > 0; }
 
-  async function undo() {
-    const stack = uiState.undoStack.slice();
-    const snap = stack.pop();
-    if (!snap) return;
-    Store.setUiState({ undoStack: stack }, []);
-
-    // DB を現在の内容から差し替える: 一旦プロジェクトの3ドメインを消して、スナップショットを書き戻す。
+  // スナップショットを DB とメモリの両方へ反映する(undo と履歴ロールバックの共通処理)。
+  // 一旦プロジェクトの3ドメインを消してから書き戻す。
+  async function applySnapshot(snap) {
     const pid = state.project.id;
     for (const store of ['schedules', 'milestones', 'dependencies']) {
       const cur = await DB.getAllByProject(store, pid);
       await DB.bulkRemove(store, cur.map(r => r.id));
     }
-    for (const n of snap.schedules) await DB.put('schedules', n);
-    for (const m of snap.milestones) await DB.put('milestones', m);
-    for (const d of snap.dependencies) await DB.put('dependencies', d);
-
-    state.schedules = snap.schedules;
-    state.milestones = snap.milestones;
-    state.dependencies = snap.dependencies;
+    for (const n of snap.schedules) await DB.put('schedules', { ...n, projectId: pid });
+    for (const m of snap.milestones) await DB.put('milestones', { ...m, projectId: pid });
+    for (const d of snap.dependencies) await DB.put('dependencies', { ...d, projectId: pid });
+    state.schedules = snap.schedules.map(x => ({ ...x }));
+    state.milestones = snap.milestones.map(x => ({ ...x }));
+    state.dependencies = snap.dependencies.map(x => ({ ...x }));
     await Projects.touch();
+  }
+
+  async function undo() {
+    const stack = uiState.undoStack.slice();
+    const snap = stack.pop();
+    if (!snap) return;
+    Store.setUiState({ undoStack: stack }, []);
+    await applySnapshot(snap);
     toast('元に戻しました');
     Store.renderAll();
   }
@@ -90,29 +93,11 @@ const History = (() => {
     const ok = await UI.confirm('この時点の状態に戻します。よろしいですか?(この操作も「元に戻す」で取り消せます)', { okLabel: '戻す' });
     if (!ok) return;
     snapshot(); // 復元前の状態を undo スタックへ
-    const pid = state.project.id;
-    for (const store of ['schedules', 'milestones', 'dependencies']) {
-      const cur = await DB.getAllByProject(store, pid);
-      await DB.bulkRemove(store, cur.map(r => r.id));
-    }
-    for (const n of entry.snap.schedules) await DB.put('schedules', { ...n, projectId: pid });
-    for (const m of entry.snap.milestones) await DB.put('milestones', { ...m, projectId: pid });
-    for (const d of entry.snap.dependencies) await DB.put('dependencies', { ...d, projectId: pid });
-    state.schedules = entry.snap.schedules.map(x => ({ ...x }));
-    state.milestones = entry.snap.milestones.map(x => ({ ...x }));
-    state.dependencies = entry.snap.dependencies.map(x => ({ ...x }));
-    await Projects.touch();
+    await applySnapshot(entry.snap);
     if (panelHandle) panelHandle.close();
     toast('この時点に戻しました');
     Store.renderAll();
   }
 
-  async function refresh() {
-    if (!state.project) return;
-    const fresh = await DB.getAllByProject('historyLog', state.project.id);
-    fresh.sort((a, b) => b.at - a.at);
-    Store.setState({ history: fresh }, []);
-  }
-
-  return { snapshot, canUndo, undo, openPanel, restoreTo, refresh };
+  return { snapshot, canUndo, undo, openPanel, restoreTo };
 })();

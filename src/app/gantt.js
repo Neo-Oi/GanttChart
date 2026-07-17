@@ -48,7 +48,6 @@ const Gantt = (() => {
   }
 
   function dateToX(d) { return dayDiff(scale.origin, d) * scale.pxPerDay; }
-  function xToDate(x) { return addDays(scale.origin, Math.round(x / scale.pxPerDay)); }
 
   // 指定日が画面内に見えるよう、ガント本体を水平スクロールする(先頭に戻す)。
   // 位置が正しく計算されていても、現在のスクロール位置の外にあると
@@ -358,5 +357,6 @@ const Gantt = (() => {
     document.addEventListener('mouseup', onUp);
   }
 
-  return { renderGantt, computeDateScale, dateToX, xToDate, scrollToDate, beginDrag, ROW_H };
+  // 外部から使うのはこの3つだけ(描画・日付へのスクロール・バードラッグ開始)。
+  return { renderGantt, scrollToDate, beginDrag };
 })();

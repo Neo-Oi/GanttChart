@@ -20,10 +20,12 @@
   --header-h: 56px;
 
   /* タスクのステータス色: 進捗が一目で分かるよう、はっきり色を分ける
-     (未着手=グレー / 進行中=オレンジ / 完了=緑)。 */
-  --tone-todo: #94a3b8;
-  --tone-doing: #f59e0b;
-  --tone-done: #22c55e;
+     (未着手=淡グレー / 進行中=アンバー / 完了=緑)。
+     いずれも明るい背景+濃色文字(#1e293b)の組み合わせでコントラスト比7以上を確保し、
+     バー上のラベルが読みやすいようにする。 */
+  --tone-todo: #cbd5e1;
+  --tone-doing: #fbbf24;
+  --tone-done: #4ade80;
 
   /* アクセント(モードで切替。既定=アシスト/緑) */
   --accent: #0f9d6b;
@@ -220,7 +222,6 @@ body[data-mode="normal"] #assistPane { display: none; }
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
-.tree-col-head { font-size: 11px; color: var(--text-faint); font-weight: 600; letter-spacing: .3px; }
 .tree-legend { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
 .tool-btn {
   height: 30px;
@@ -233,7 +234,6 @@ body[data-mode="normal"] #assistPane { display: none; }
   font-weight: 600;
 }
 .tool-btn.primary:hover { background: var(--accent); color: var(--on-accent); }
-.tool-btn.mini { height: 24px; padding: 0 8px; font-size: 11px; }
 
 .tree-list { flex: 1 1 auto; overflow-y: auto; }
 
@@ -282,9 +282,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 
 /* WBSの状態表示: 親は進捗%、末端タスクは 未着手/進行中/完了。進行具合を一目で。 */
 .tree-row .row-status { flex: 0 0 auto; min-width: 38px; text-align: right; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.tree-row .row-status.todo { color: #94a3b8; }
-.tree-row .row-status.doing { color: var(--accent-strong); }
-.tree-row .row-status.done { color: #16a34a; }
+/* 白背景上の文字なので、各ステータスの濃色版を使う(バーの色と同系で読みやすい)。 */
+.tree-row .row-status.todo { color: #64748b; }
+.tree-row .row-status.doing { color: #b45309; }
+.tree-row .row-status.done { color: #15803d; }
 /* ミニボタンはホバー時に右端へオーバーレイ表示(被せる)。行のレイアウトに影響しないので、
    ホバーしても状態・日付の列がずれない。 */
 .tree-row .row-actions {
@@ -364,7 +365,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* 今日/マイルストーンの旗はヘッダー(目盛りの一段上)の下端に置き、行のバーと重ならないようにする。 */
 .today-flag {
   position: absolute; bottom: 1px; transform: translateX(-50%);
-  background: #ef4444; color: #fff; font-size: 10px; font-weight: 700;
+  background: #dc2626; color: #fff; font-size: 10px; font-weight: 700;
   padding: 1px 6px; border-radius: 5px 5px 0 0; z-index: 9; pointer-events: none;
 }
 
@@ -419,7 +420,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* lv1 = サブスケジュール(子)。中太・グレー。 */
 .bar.lv1 { top: 9px; height: calc(var(--row-h) - 18px); background: #64748b; --bs: #64748b; }
 /* lv2 = タスク。最細・ステータス濃淡(未着手=濃 → 完了=淡)。完了は淡いので文字を濃色に。 */
-.bar.lv2 { top: 13px; height: calc(var(--row-h) - 26px); }
+/* タスクバーは明るい背景なので、文字は濃色・影なしで読みやすく。 */
+.bar.lv2 { top: 13px; height: calc(var(--row-h) - 26px); color: #1e293b; }
+.bar.lv2 .bar-label { text-shadow: none; }
+.bar.lv2[data-bar]:hover .grip::after { border-color: rgba(30, 41, 59, .55); }
 .bar.lv2.todo { background: var(--tone-todo); }
 .bar.lv2.doing { background: var(--tone-doing); }
 .bar.lv2.done { background: var(--tone-done); }
@@ -435,19 +439,20 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
-/* マイルストーン: チャートを縦に貫く点線(グリッド内) + ヘッダー下端の旗。 */
+/* マイルストーン: チャートを縦に貫く点線(グリッド内) + ヘッダー下端の旗。
+   進行中タスクのアンバーや履歴の「変更」オレンジと混同しないよう、紫で区別する。 */
 .milestone-line {
   position: absolute; top: 0; width: 0; z-index: 5; pointer-events: none;
-  border-left: 2px dashed #d97706;
+  border-left: 2px dashed #8b5cf6;
 }
 .milestone-flag {
   position: absolute; bottom: 1px; transform: translateX(-50%);
-  background: #f59e0b; color: #fff; border: 0; z-index: 10;
+  background: #7c3aed; color: #fff; border: 0; z-index: 10;
   font-size: 10px; font-weight: 700; white-space: nowrap;
   padding: 2px 8px; border-radius: 5px 5px 0 0;
   cursor: pointer; box-shadow: var(--shadow-sm);
 }
-.milestone-flag:hover { background: #d97706; }
+.milestone-flag:hover { background: #6d28d9; }
 
 #depSvg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 4; overflow: visible; }
 .dep-path { stroke: var(--text-muted); stroke-width: 1.5; fill: none; }
@@ -573,7 +578,6 @@ body[data-mode="normal"] #assistPane { display: none; }
 .field .eg-hint { display: block; margin-top: 4px; font-size: 11px; color: var(--text-faint); font-style: italic; }
 .field.row2 { display: flex; gap: 12px; }
 .field.row2 > div { flex: 1; }
-.field-err { color: #dc2626; font-size: 12px; margin: -8px 0 10px; }
 
 .btn {
   height: 38px; padding: 0 18px; border-radius: var(--radius-sm);
@@ -600,10 +604,11 @@ body[data-mode="normal"] #assistPane { display: none; }
 .hist-item .what { color: var(--text); }
 .hist-line { display: flex; align-items: flex-start; gap: 8px; }
 .hist-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; padding-left: 44px; }
-/* アクション色分け: 追加=テーマ色 / 変更=オレンジ / 削除=赤 */
+/* アクション色分け: 追加=テーマ色 / 変更=オレンジ / 削除=赤。
+   タグは小さい白文字なので、それぞれ濃色版を使いコントラストを確保する。 */
 .hist-tag { flex: 0 0 auto; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; color: #fff; }
-.hist-tag.hist-add { background: var(--accent); }
-.hist-tag.hist-edit { background: #f59e0b; }
+.hist-tag.hist-add { background: var(--accent-strong); }
+.hist-tag.hist-edit { background: #b45309; }
 .hist-tag.hist-delete { background: #dc2626; }
 /* 左端に色帯 */
 .hist-item.hist-add { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; }
@@ -677,8 +682,8 @@ body[data-mode="normal"] #notesFloatClose { display: none; }
 .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
 .seg button { border: 0; background: var(--surface); padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted); border-right: 1px solid var(--border); }
 .seg button:last-child { border-right: 0; }
-.seg button.on.todo { background: var(--tone-todo); color: #fff; }
-.seg button.on.doing { background: var(--tone-doing); color: #fff; }
+.seg button.on.todo { background: var(--tone-todo); color: #1e293b; }
+.seg button.on.doing { background: var(--tone-doing); color: #1e293b; }
 .seg button.on.done { background: var(--tone-done); color: #1e293b; }
 .seg button.on.accent { background: var(--accent); color: var(--on-accent); } /* タスク状態以外の選択(モード選択など) */
 

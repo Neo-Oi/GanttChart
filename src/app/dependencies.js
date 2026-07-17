@@ -74,5 +74,6 @@ const Dependencies = (() => {
     }
   }
 
-  return { leafTasks, predecessorsOf, wouldCycle, setPredecessors, rescheduleFrom };
+  // wouldCycle はモジュール内でのみ使う。
+  return { leafTasks, predecessorsOf, setPredecessors, rescheduleFrom };
 })();

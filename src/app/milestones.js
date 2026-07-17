@@ -73,5 +73,6 @@ const Milestones = (() => {
     Store.renderAll();
   }
 
-  return { openEditor, add, save, remove };
+  // add/save/remove はモーダル経由でのみ呼ばれる(外部公開は openEditor だけ)。
+  return { openEditor };
 })();
