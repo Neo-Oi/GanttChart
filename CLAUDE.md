@@ -1,73 +1,73 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+このファイルは、このリポジトリで作業する Claude Code (claude.ai/code) に向けたガイダンスです。
 
-## What this is
+## これは何か
 
-GanttForge is a local-first Gantt chart / project-planning tool that ships as **one self-contained `.html` file**. No backend, no build-time framework, no external network requests at runtime — all data lives in the browser's IndexedDB. The shipped artifact is `dist/index.html`, produced by concatenating the files under `src/`.
+GanttForge は、**単一の自己完結した `.html` ファイル**として配布される、ローカルファーストのガントチャート/プロジェクト計画ツールです。バックエンドなし、ビルド時フレームワークなし、実行時の外部ネットワーク通信なし — 全データはブラウザの IndexedDB に保存されます。配布物は `dist/index.html` で、`src/` 配下のファイルを連結して生成されます。
 
-The full functional spec and confirmed design decisions live in `~/.claude/plans/glimmering-scribbling-candy.md` (the approved implementation plan). Read it before making architectural changes — it documents *why* things are structured this way (single-file constraint, IndexedDB-only persistence, the 3 independent data domains, lock semantics, etc.), not just what to build.
+完全な機能仕様と確定済みの設計判断は `~/.claude/plans/glimmering-scribbling-candy.md`(承認済みの実装計画書)にあります。アーキテクチャ変更を行う前に読んでください — 単に何を作るかだけでなく、*なぜ*このような構造になっているか(単一ファイル制約、IndexedDBのみの永続化、3つの独立したデータドメイン、ロックのセマンティクスなど)が記載されています。
 
-## Commands
+## コマンド
 
 ```bash
-python3 build.py                      # concatenates src/ into dist/index.html
-python3 -m http.server 8000           # from dist/, serves the built app
+python3 build.py                      # src/ を連結して dist/index.html を生成する
+python3 -m http.server 8000           # dist/ から、ビルド済みアプリを配信する
 ```
 
-Serve via HTTP, not `file://` — IndexedDB behaves unreliably under the `file://` origin in some browsers. There is no npm/Node toolchain in this project (Node isn't assumed to be installed); `build.py` uses only the Python 3 standard library (`pathlib`), by design, so no dependency installation step exists.
+`file://` ではなく HTTP 経由で配信してください — 一部のブラウザでは `file://` オリジン下で IndexedDB の挙動が不安定になります。このプロジェクトに npm/Node のツールチェーンはありません(Nodeがインストールされている前提を置いていません)。`build.py` は意図的に Python 3 標準ライブラリ(`pathlib`)のみを使っているため、依存関係のインストール手順は存在しません。
 
-There is no lint or test suite configured yet.
+lint・テストスイートはまだ設定されていません。
 
-**Dev loop:** edit files under `src/`, then re-run `python3 build.py`, then refresh the browser tab pointed at `dist/index.html`. `build.py` is a dumb string-concatenation script — it has no watch mode and does no bundling/transpilation; there's nothing to configure.
+**開発ループ:** `src/` 配下のファイルを編集し、`python3 build.py` を再実行してから、`dist/index.html` を開いているブラウザタブを更新してください。`build.py` は単純な文字列連結スクリプトで、ウォッチモードもバンドル/トランスパイルも行いません — 設定すべきことは何もありません。
 
-## Architecture
+## アーキテクチャ
 
-### Build: multiple source files → one shipped file
+### ビルド: 複数のソースファイル → 1つの配布ファイル
 
-`src/index.html` contains three placeholder comments that `build.py` replaces in order:
-- `<!-- BUILD:STYLES -->` → inlines `src/styles.css` into a `<style>` block
-- `<!-- BUILD:VENDOR -->` → inlines each file in `VENDOR_FILES` (in `build.py`), one `<script>` tag per vendored library (empty for now — third-party libraries like `marked`/`jsPDF`/SheetJS get vendored into `src/vendor/` and added to this list in later phases, never loaded from a CDN)
-- `<!-- BUILD:APP -->` → concatenates all of `APP_FILES` (in `build.py`) into a single `<script>` block
+`src/index.html` には、`build.py` が順に置き換える3つのプレースホルダーコメントがあります:
+- `<!-- BUILD:STYLES -->` → `src/styles.css` を `<style>` ブロックにインライン化
+- `<!-- BUILD:VENDOR -->` → `build.py` の `VENDOR_FILES` に列挙された各ファイルを、ベンダーライブラリごとに1つの `<script>` タグとしてインライン化(現時点では空 — `marked`/`jsPDF`/SheetJS のようなサードパーティライブラリは、後のフェーズで `src/vendor/` にベンダリングされこのリストに追加される。CDNからの読み込みは行わない)
+- `<!-- BUILD:APP -->` → `build.py` の `APP_FILES` をすべて1つの `<script>` ブロックに連結
 
-**File load order is an explicit array in `build.py` (`APP_FILES`), not directory/glob order.** When adding a new `src/app/*.js` module, you must add it to that array in dependency order (state/db before the modules that use them; `main.js` last, since it wires everything up on `DOMContentLoaded`).
+**ファイルの読み込み順序は `build.py` 内の明示的な配列(`APP_FILES`)で決まり、ディレクトリ/globの順序ではありません。** 新しい `src/app/*.js` モジュールを追加する際は、依存関係の順序でこの配列に追加する必要があります(state/db は、それらを利用するモジュールより前に。`main.js` は `DOMContentLoaded` で全体を配線するため最後)。
 
-### State: one shared mutable store, tag-scoped pub/sub
+### 状態管理: 1つの共有可変ストアと、タグスコープのpub/sub
 
-`src/app/state.js` defines two global objects:
-- `state` — domain data for the *currently selected* project (schedules, milestones, etc.), fully reloaded from IndexedDB on every project switch. Not partitioned/paginated — the app assumes personal-project-scale record counts.
-- `uiState` — transient UI-only state (which side panel is open, lock flag, Gantt/mindmap pan-zoom-scroll, schedule-list expand/collapse, visible schedule-list columns). Kept separate from `state` specifically so re-rendering domain data never resets scroll/pan/zoom.
+`src/app/state.js` は2つのグローバルオブジェクトを定義します:
+- `state` — *現在選択中*のプロジェクトのドメインデータ(スケジュール、マイルストーンなど)で、プロジェクト切り替えのたびにIndexedDBから完全に再読み込みされます。パーティション化/ページネーションはされていません — 個人プロジェクト規模のレコード数を前提としています。
+- `uiState` — トランジェントなUI専用状態(どのサイドパネルが開いているか、ロックフラグ、ガント/マインドマップのパン・ズーム・スクロール、スケジュールリストの展開・折りたたみ、表示中のスケジュールリスト列)。ドメインデータの再レンダリングがスクロール/パン/ズームを絶対にリセットしないよう、`state` とは明確に分離されています。
 
-`Store.setState(patch, tags)` / `Store.setUiState(patch, tags)` merge the patch and then call only the render functions subscribed to the given `tags` (via `Store.subscribe(tags, fn)`, wired once in `main.js#init`). **When you add a mutation that affects the UI, you must pass the correct tags** — a call with the wrong (or empty) tag list will silently update the DB/in-memory state without the screen refreshing. This has already been the source of real bugs during development (e.g. forgetting to tag `'lockBanner'` when switching projects meant the lock banner didn't update) — when touching `uiState.locked` or adding new state, double check every write site notifies every render function that depends on it.
+`Store.setState(patch, tags)` / `Store.setUiState(patch, tags)` はパッチをマージし、指定された `tags` を購読しているレンダー関数のみを呼び出します(`Store.subscribe(tags, fn)` 経由で、`main.js#init` 内で一度だけ配線されます)。**UIに影響する変更を追加する際は、正しいタグを渡す必要があります** — 誤った(または空の)タグリストで呼び出すと、画面が更新されないままDB/メモリ上の状態だけが黙って更新されます。これは開発中に実際のバグの原因になっています(例: プロジェクト切り替え時に `'lockBanner'` タグを付け忘れたためロックバナーが更新されなかった) — `uiState.locked` を触ったり新しい状態を追加したりする際は、その状態に依存するすべてのレンダー関数に通知が届いているか、書き込み箇所ごとに再確認してください。
 
-### Persistence: IndexedDB, one DB, adjacency-list schedule tree
+### 永続化: IndexedDB、単一DB、隣接リスト方式のスケジュールツリー
 
-`src/app/db.js` opens a single `ganttforge` database with one object store per domain (`projects`, `schedules`, `milestones`, `tasks`, `mindmapNodes`, `comments`, `notes`, `quickNotes`, `snapshots`, `historyLog`), all indexed by `projectId`. All mutations should go through `DB.put(store, record, historyMeta?)` / `DB.remove(store, id, historyMeta?)` rather than opening raw transactions elsewhere — these two helpers are also where change-history logging happens (see below), and bypassing them means a mutation silently won't be logged.
+`src/app/db.js` は単一の `ganttforge` データベースを開き、ドメインごとに1つのオブジェクトストア(`projects`、`schedules`、`milestones`、`tasks`、`mindmapNodes`、`comments`、`notes`、`quickNotes`、`snapshots`、`historyLog`)を持ち、すべて `projectId` でインデックスされています。変更は他の場所で場当たり的に生のトランザクションを開くのではなく、すべて `DB.put(store, record, historyMeta?)` / `DB.remove(store, id, historyMeta?)` を経由させてください — この2つのヘルパーは変更履歴のロギングも担っており(後述)、これをバイパスすると変更が黙って履歴に記録されなくなります。
 
-The schedule hierarchy (schedule → sub-schedule → sub-sub-schedule, max 3 levels) is modeled as an **adjacency list** (`parentId` + a sibling `order` integer), not a materialized path string. Display numbering ("1.2.3") is *never stored* — `Schedules.computeNumbering()` / `Schedules.flattenForDisplay()` (in `src/app/schedules.js`) compute it fresh from `parentId`/`order` on every render, so deleting/reordering a schedule doesn't require any renumbering of siblings elsewhere.
+スケジュールの階層(スケジュール → サブスケジュール → サブサブスケジュール、最大3階層)は**隣接リスト**(`parentId` + 兄弟の `order` 整数)で表現されており、実体化されたパス文字列ではありません。表示用の番号("1.2.3")は*決して保存されず*、`Schedules.computeNumbering()` / `Schedules.flattenForDisplay()`(`src/app/schedules.js` 内)が毎回のレンダリング時に `parentId`/`order` から都度計算するため、スケジュールの削除・並べ替えの際に他の兄弟の番号を振り直す必要はありません。
 
-### Change history logging
+### 変更履歴のロギング
 
-Only three domains are history-tracked: `schedules`, `milestones`, `comments` (see `HISTORY_DOMAINS` in `db.js`). Task Management, Mind Map, Notes, and Quick Notes are intentionally excluded — this was a confirmed product decision, not an oversight. `DB.put`/`DB.remove` only write a `historyLog` entry when a `historyMeta` object is passed *and* the store is in `HISTORY_DOMAINS`; omit `historyMeta` for domains that shouldn't log.
+履歴追跡の対象は `schedules`、`milestones`、`comments` の3ドメインのみです(`db.js` 内の `HISTORY_DOMAINS` を参照)。タスク管理・マインドマップ・メモ・即時メモは意図的に除外されています — これは見落としではなく確定済みのプロダクト判断です。`DB.put`/`DB.remove` は、`historyMeta` オブジェクトが渡され、*かつ*そのストアが `HISTORY_DOMAINS` に含まれる場合にのみ `historyLog` エントリを書き込みます。ロギング対象外のドメインでは `historyMeta` を渡さないでください。
 
-### The three independent data domains
+### 3つの独立したデータドメイン
 
-Schedules (Gantt), Task Management (kanban), and Mind Map are deliberately **unlinked** — no cross-references between them in the schema. Comments are the one exception: they belong to a specific `scheduleId`. Don't introduce cross-domain foreign keys between schedules/tasks/mindmap without re-confirming with the user; this separation was an explicit design decision made during planning, not an accident.
+スケジュール(ガント)、タスク管理(かんばん)、マインドマップは意図的に**互いにリンクされていません** — スキーマ上のクロス参照はありません。コメントだけが例外で、特定の `scheduleId` に属します。ユーザーに再確認せずに、スケジュール/タスク/マインドマップ間にクロスドメインの外部キーを導入しないでください — この分離は計画段階での明示的な設計判断であり、偶然そうなったわけではありません。
 
-### Rendering pattern
+### レンダリングパターン
 
-No framework, no virtual DOM. Most panels are `container.innerHTML = templateString(...)` full replaces (`src/app/schedules.js#renderScheduleList`, `src/app/gantt.js#renderGantt` are the reference examples) — this is intentionally simple given the personal-project data scale. The one deliberate exception, if/when the Mind Map lands, is to keep an outer SVG `<g transform>` alive across re-renders so pan/zoom state isn't wiped by an innerHTML replace of the whole chart.
+フレームワークも仮想DOMもありません。ほとんどのパネルは `container.innerHTML = templateString(...)` による全置換です(`src/app/schedules.js#renderScheduleList`、`src/app/gantt.js#renderGantt` が参考例です) — 個人プロジェクト規模のデータ量であることを踏まえ、意図的にシンプルにしています。唯一意図的な例外は、マインドマップが実装された場合、外側のSVG `<g transform>` を再レンダリングを跨いで生かしたままにし、チャート全体のinnerHTML置換によってパン/ズーム状態が消えないようにすることです。
 
-Click handling uses **event delegation on a persistent container**, wired once in `main.js` (`wireScheduleListEvents`, `wireGanttEvents`, etc.) — never attach a listener inside a function that runs on every render/every modal-open, since the container it's attached to won't be recreated and the listener will accumulate on repeated calls (this exact bug — a listener re-attached to `#modalHost` every time a modal opened — was caught and fixed in `src/app/milestones.js`; when adding new modals/panels, delegate onto an element that *is* recreated by the innerHTML replace, or wire the listener exactly once).
+クリック処理は、`main.js`(`wireScheduleListEvents`、`wireGanttEvents` など)で一度だけ配線される**永続的なコンテナ上でのイベント委譲**を使っています — 毎回のレンダリング/モーダルを開くたびに実行される関数の中でリスナーをアタッチしないでください。アタッチ先のコンテナが再生成されないため、呼び出しを繰り返すたびにリスナーが蓄積してしまいます(モーダルを開くたびに `#modalHost` にリスナーが再アタッチされていたこの正確なバグが `src/app/milestones.js` で発見・修正済みです。新しいモーダル/パネルを追加する際は、innerHTML置換によって*実際に*再生成される要素にリスナーを委譲するか、リスナーを一度だけ配線してください)。
 
-### Gantt date-scale math
+### ガントの日付・スケール計算
 
-`src/app/gantt.js` centralizes all date↔pixel conversion (`computeDateScale`, `dateToX`) so the planned PDF export (a later phase) can reuse the exact same layout math rather than re-deriving bar positions. Gridline granularity (day/week/month/quarter, via the header's granularity selector) only changes *which* gridlines are drawn/labeled — `pxPerDay` itself does not change with granularity.
+`src/app/gantt.js` は日付↔ピクセルの変換(`computeDateScale`、`dateToX`)をすべて一箇所に集約しており、計画中のPDFエクスポート(後のフェーズ)がバーの位置を再計算するのではなく、同じレイアウト計算をそのまま再利用できるようにしています。目盛りの粒度(日/週/月/四半期。ヘッダーの粒度セレクターで切り替え)は*どのグリッド線を描画・ラベル表示するか*だけを変え、`pxPerDay` 自体は粒度によって変化しません。
 
-### Modals
+### モーダル
 
-`src/app/ui.js#openModal(html, {onSubmit})` is the shared modal host — it fully replaces `#modalHost`'s contents on every call, which is what makes it safe to attach listeners to elements *inside* the modal body. `onSubmit` returning `false` keeps the modal open (used for inline validation errors); anything else closes it immediately, before any async DB write actually resolves.
+`src/app/ui.js#openModal(html, {onSubmit})` が共有のモーダルホストです — 呼び出しのたびに `#modalHost` の中身を完全に置き換えるため、モーダル本体の*内部*の要素にリスナーをアタッチしても安全です。`onSubmit` が `false` を返すとモーダルは開いたままになります(インラインのバリデーションエラー表示に使用)。それ以外を返すと、非同期のDB書き込みが実際に解決する前に即座に閉じます。
 
-## Implementation phases
+## 実装フェーズ
 
-The project is being built in the phased order documented in the plan file referenced above (foundation → hierarchy → lock/today/milestones → task management → mind map → comments/history → notes → snapshots → import/export/PDF/Excel). Check that plan file's phase list for what's implemented vs. still pending before assuming a feature exists.
+このプロジェクトは、上記の計画書に記載されたフェーズ順(基盤 → 階層構造 → ロック/今日/マイルストーン → タスク管理 → マインドマップ → コメント/履歴 → メモ → スナップショット → インポート/エクスポート/PDF/Excel)で構築されます。ある機能が実装済みと仮定する前に、計画書のフェーズ一覧で実装済みか未着手かを確認してください。
