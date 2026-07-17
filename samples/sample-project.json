@@ -1,0 +1,71 @@
+{
+  "app": "GanttChart",
+  "version": 1,
+  "exportedAt": "2026-07-17T00:00:00.000Z",
+  "project": {
+    "name": "社内ポータルサイト開発",
+    "mode": "assist",
+    "startDate": "2026-07-01",
+    "endDate": "2026-10-30"
+  },
+  "schedules": [
+    { "id": "s01", "projectId": "sample", "parentId": null, "order": 0, "name": "定義", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "要件を確定させるフェーズ" },
+    { "id": "s02", "projectId": "sample", "parentId": "s01", "order": 0, "name": "要件定義", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s03", "projectId": "sample", "parentId": "s02", "order": 0, "name": "ステークホルダーヒアリング", "startDate": "2026-07-01", "endDate": "2026-07-07", "status": "done", "assignee": "田中", "note": "主要5部署にヒアリング実施" },
+    { "id": "s04", "projectId": "sample", "parentId": "s02", "order": 1, "name": "機能要件一覧作成", "startDate": "2026-07-08", "endDate": "2026-07-14", "status": "done", "assignee": "佐藤", "note": "" },
+    { "id": "s05", "projectId": "sample", "parentId": "s02", "order": 2, "name": "非機能要件整理", "startDate": "2026-07-08", "endDate": "2026-07-10", "status": "done", "assignee": "鈴木", "note": "性能・セキュリティ・可用性" },
+    { "id": "s06", "projectId": "sample", "parentId": "s02", "order": 3, "name": "要件レビュー会", "startDate": "2026-07-15", "endDate": "2026-07-17", "status": "doing", "assignee": "田中", "note": "経営層向け最終確認" },
+    { "id": "s07", "projectId": "sample", "parentId": null, "order": 1, "name": "設計", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s08", "projectId": "sample", "parentId": "s07", "order": 0, "name": "基本設計", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s09", "projectId": "sample", "parentId": "s08", "order": 0, "name": "画面設計", "startDate": "2026-07-21", "endDate": "2026-07-31", "status": "todo", "assignee": "佐藤", "note": "" },
+    { "id": "s10", "projectId": "sample", "parentId": "s08", "order": 1, "name": "データベース設計", "startDate": "2026-07-21", "endDate": "2026-07-29", "status": "todo", "assignee": "鈴木", "note": "" },
+    { "id": "s11", "projectId": "sample", "parentId": "s07", "order": 1, "name": "詳細設計", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s12", "projectId": "sample", "parentId": "s11", "order": 0, "name": "API詳細設計", "startDate": "2026-08-03", "endDate": "2026-08-12", "status": "todo", "assignee": "鈴木", "note": "" },
+    { "id": "s13", "projectId": "sample", "parentId": "s11", "order": 1, "name": "詳細設計レビュー", "startDate": "2026-08-17", "endDate": "2026-08-21", "status": "todo", "assignee": "田中", "note": "" },
+    { "id": "s14", "projectId": "sample", "parentId": null, "order": 2, "name": "実装", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s15", "projectId": "sample", "parentId": "s14", "order": 0, "name": "認証・共通基盤", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s16", "projectId": "sample", "parentId": "s15", "order": 0, "name": "認証機能実装", "startDate": "2026-08-24", "endDate": "2026-09-04", "status": "todo", "assignee": "高橋", "note": "社内SSOと連携" },
+    { "id": "s17", "projectId": "sample", "parentId": "s15", "order": 1, "name": "共通UIコンポーネント作成", "startDate": "2026-08-24", "endDate": "2026-09-02", "status": "todo", "assignee": "佐藤", "note": "" },
+    { "id": "s18", "projectId": "sample", "parentId": "s14", "order": 1, "name": "主要機能", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s19", "projectId": "sample", "parentId": "s18", "order": 0, "name": "お知らせ機能実装", "startDate": "2026-09-07", "endDate": "2026-09-18", "status": "todo", "assignee": "高橋", "note": "" },
+    { "id": "s20", "projectId": "sample", "parentId": "s18", "order": 1, "name": "文書検索機能実装", "startDate": "2026-09-09", "endDate": "2026-09-25", "status": "todo", "assignee": "鈴木", "note": "" },
+    { "id": "s21", "projectId": "sample", "parentId": "s18", "order": 2, "name": "コードレビュー対応", "startDate": "2026-09-28", "endDate": "2026-10-02", "status": "todo", "assignee": "全員", "note": "" },
+    { "id": "s22", "projectId": "sample", "parentId": null, "order": 3, "name": "テスト・リリース", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s23", "projectId": "sample", "parentId": "s22", "order": 0, "name": "総合テスト", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s24", "projectId": "sample", "parentId": "s23", "order": 0, "name": "結合テスト", "startDate": "2026-10-05", "endDate": "2026-10-16", "status": "todo", "assignee": "全員", "note": "" },
+    { "id": "s25", "projectId": "sample", "parentId": "s23", "order": 1, "name": "受入テスト", "startDate": "2026-10-19", "endDate": "2026-10-23", "status": "todo", "assignee": "田中", "note": "利用部門の代表者に依頼" },
+    { "id": "s26", "projectId": "sample", "parentId": "s22", "order": 1, "name": "リリース", "startDate": "", "endDate": "", "status": "todo", "assignee": "", "note": "" },
+    { "id": "s27", "projectId": "sample", "parentId": "s26", "order": 0, "name": "リリース作業", "startDate": "2026-10-28", "endDate": "2026-10-29", "status": "todo", "assignee": "高橋", "note": "" },
+    { "id": "s28", "projectId": "sample", "parentId": "s26", "order": 1, "name": "操作説明会", "startDate": "2026-10-30", "endDate": "2026-10-30", "status": "todo", "assignee": "佐藤", "note": "" }
+  ],
+  "milestones": [
+    { "id": "m01", "projectId": "sample", "name": "要件確定", "date": "2026-07-17" },
+    { "id": "m02", "projectId": "sample", "name": "設計完了", "date": "2026-08-21" },
+    { "id": "m03", "projectId": "sample", "name": "コードフリーズ", "date": "2026-10-02" },
+    { "id": "m04", "projectId": "sample", "name": "本番リリース", "date": "2026-10-29" }
+  ],
+  "dependencies": [
+    { "id": "d01", "projectId": "sample", "fromId": "s03", "toId": "s04" },
+    { "id": "d02", "projectId": "sample", "fromId": "s04", "toId": "s06" },
+    { "id": "d03", "projectId": "sample", "fromId": "s10", "toId": "s12" },
+    { "id": "d04", "projectId": "sample", "fromId": "s12", "toId": "s13" },
+    { "id": "d05", "projectId": "sample", "fromId": "s16", "toId": "s19" },
+    { "id": "d06", "projectId": "sample", "fromId": "s24", "toId": "s25" }
+  ],
+  "notes": [
+    {
+      "id": "n01",
+      "projectId": "sample",
+      "name": "キックオフメモ",
+      "body": "# 社内ポータルサイト開発\n\n## 目的\n- 社内の情報共有を1か所に集約する\n- **お知らせ配信** と **文書検索** を最優先で提供する\n\n## 体制\n- PM: 田中\n- 設計/フロント: 佐藤\n- DB/API: 鈴木\n- 実装リード: 高橋\n\n## 決定事項\n- [x] 開発期間は 7/1〜10/30(約4か月)\n- [x] 認証は社内SSOと連携する\n- [ ] 本番サーバーの調達時期は情シスと調整中",
+      "order": 0
+    },
+    {
+      "id": "n02",
+      "projectId": "sample",
+      "name": "課題・リスク",
+      "body": "## 課題・リスク一覧\n- [ ] 8月の夏季休暇期間の作業計画を確認する\n- [ ] 文書検索の対象範囲(過去何年分か)が未確定\n- [ ] 受入テストの参加者を各部署から1名ずつ確保する\n- [x] レビュー会の会議室を予約済み\n\n*リスクが顕在化したらこのメモに追記していく*",
+      "order": 1
+    }
+  ]
+}
