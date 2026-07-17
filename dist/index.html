@@ -1,0 +1,2212 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GanttChart</title>
+  <style>
+/* ===== ベース / トークン ===== */
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #1e2732;
+  --text-muted: #64748b;
+  --text-faint: #94a3b8;
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 3px rgba(15, 23, 42, .08);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, .10), 0 2px 4px rgba(15, 23, 42, .06);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, .16);
+  --radius: 10px;
+  --radius-sm: 7px;
+  --row-h: 38px;
+  --tree-w: 340px;
+  --assist-w: 300px;
+  --header-h: 56px;
+
+  /* 状態色(タスクのステータス) — アクセント色とは別トーンで衝突を避ける */
+  --st-todo: #94a3b8;
+  --st-todo-bg: #e2e8f0;
+  --st-doing: #38bdf8;
+  --st-doing-bg: #bae6fd;
+  --st-done: #34d399;
+  --st-done-bg: #bbf7d0;
+
+  /* アクセント(モードで切替。既定=アシスト/緑) */
+  --accent: #0f9d6b;
+  --accent-strong: #0b7a54;
+  --accent-soft: #e6f7f0;
+  --accent-line: #7fd8b6;
+  --on-accent: #ffffff;
+}
+
+/* アシストモード: 緑基調 */
+body[data-mode="assist"] {
+  --accent: #0f9d6b;
+  --accent-strong: #0b7a54;
+  --accent-soft: #e7f8f1;
+  --accent-line: #86dcbb;
+}
+
+/* ノーマルモード: 青基調 */
+body[data-mode="normal"] {
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #e8f0fe;
+  --accent-line: #9cc0fb;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN",
+    "Noto Sans JP", Meiryo, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+#app { display: flex; flex-direction: column; height: 100vh; }
+
+button { font-family: inherit; cursor: pointer; }
+
+/* ===== ヘッダー ===== */
+#appHeader {
+  height: var(--header-h);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 18px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  z-index: 20;
+}
+.hd-left, .hd-right, .hd-center { display: flex; align-items: center; gap: 10px; }
+
+.hd-logo {
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: .2px;
+  color: var(--accent-strong);
+  padding-right: 4px;
+}
+
+.hd-select {
+  height: 34px;
+  padding: 0 30px 0 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%2364748b' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  color: var(--text);
+  font-size: 13px;
+  appearance: none;
+  max-width: 220px;
+}
+.hd-select:focus { outline: 2px solid var(--accent-line); outline-offset: 1px; }
+
+.hd-btn {
+  height: 34px;
+  padding: 0 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  transition: background .12s, border-color .12s;
+}
+.hd-btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--text-faint); }
+.hd-btn:disabled { opacity: .45; cursor: default; }
+
+.mode-toggle {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+.mode-opt {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 999px;
+  transition: all .14s;
+}
+body[data-mode="assist"] .mode-opt[data-mode="assist"],
+body[data-mode="normal"] .mode-opt[data-mode="normal"] {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ===== 本体レイアウト ===== */
+#appBody { flex: 1 1 auto; display: flex; min-height: 0; }
+.pane { min-height: 0; background: var(--surface); }
+
+#treePane {
+  flex: 0 0 var(--tree-w);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+#ganttPane {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--surface-2);
+}
+#assistPane {
+  flex: 0 0 var(--assist-w);
+  border-left: 1px solid var(--border);
+  overflow-y: auto;
+}
+body[data-mode="normal"] #assistPane { display: none; }
+
+/* ===== ツリーペイン ===== */
+.pane-toolbar {
+  height: 46px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.tree-col-head { font-size: 11px; color: var(--text-faint); font-weight: 600; letter-spacing: .3px; }
+.tool-btn {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+.tool-btn.primary:hover { background: var(--accent); color: var(--on-accent); }
+.tool-btn.mini { height: 24px; padding: 0 8px; font-size: 11px; }
+
+.tree-list { flex: 1 1 auto; overflow-y: auto; }
+
+.tree-row {
+  display: flex;
+  align-items: center;
+  height: var(--row-h);
+  padding-right: 8px;
+  border-bottom: 1px solid var(--border);
+  gap: 4px;
+  cursor: default;
+}
+.tree-row:hover { background: var(--surface-2); }
+.tree-row.selected { background: var(--accent-soft); }
+.tree-row .twist {
+  width: 18px; height: 18px; flex: 0 0 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; color: var(--text-muted);
+  font-size: 10px;
+}
+.tree-row .twist.leaf { visibility: hidden; }
+.tree-row .num { color: var(--text-faint); font-size: 11px; min-width: 34px; font-variant-numeric: tabular-nums; }
+.tree-row .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.tree-row .name.lv0 { font-weight: 700; }
+.tree-row .name.lv1 { font-weight: 600; color: #334155; }
+.tree-row .name.lv2 { font-weight: 400; color: #475569; }
+.tree-row .meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.tree-row .row-actions { display: none; gap: 2px; }
+.tree-row:hover .row-actions { display: inline-flex; }
+.icon-btn {
+  width: 22px; height: 22px; border: 0; border-radius: 5px;
+  background: transparent; color: var(--text-muted); font-size: 13px;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.icon-btn:hover { background: var(--border); color: var(--text); }
+
+.status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; }
+.status-dot.todo { background: var(--st-todo); }
+.status-dot.doing { background: var(--st-doing); }
+.status-dot.done { background: var(--st-done); }
+
+.tree-empty { padding: 40px 20px; text-align: center; color: var(--text-faint); font-size: 13px; }
+
+/* ===== ガント ===== */
+.gantt-header {
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  height: 46px;
+  position: relative;
+}
+.gantt-body { flex: 1 1 auto; overflow: auto; position: relative; }
+
+.gantt-scale { position: relative; height: 46px; }
+.scale-tick {
+  position: absolute; top: 0; bottom: 0;
+  border-left: 1px solid var(--border);
+  font-size: 10px; color: var(--text-faint);
+  padding: 4px 0 0 4px;
+  white-space: nowrap;
+}
+.scale-tick.major { border-left-color: var(--border-strong); }
+.scale-tick .sub { display: block; color: var(--text-muted); font-weight: 600; font-size: 11px; }
+
+.gantt-grid { position: relative; }
+.grid-line { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
+.grid-line.major { border-left-color: var(--border-strong); }
+.grid-weekend { position: absolute; top: 0; bottom: 0; background: rgba(100, 116, 139, .05); }
+.grid-holiday { position: absolute; top: 0; bottom: 0; background: rgba(239, 68, 68, .06); }
+
+.today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 6; pointer-events: none; }
+.today-flag {
+  position: absolute; top: 0; transform: translateX(-50%);
+  background: #ef4444; color: #fff; font-size: 10px; font-weight: 700;
+  padding: 1px 6px; border-radius: 0 0 5px 5px; z-index: 7; pointer-events: none;
+}
+
+.gantt-row { position: relative; height: var(--row-h); border-bottom: 1px solid var(--border); }
+.gantt-row:hover { background: rgba(148, 163, 184, .06); }
+.gantt-row.selected { background: var(--accent-soft); }
+
+.bar {
+  position: absolute;
+  top: 8px; height: calc(var(--row-h) - 16px);
+  border-radius: 6px;
+  display: flex; align-items: center;
+  padding: 0 8px;
+  font-size: 11px; color: #fff; font-weight: 600;
+  white-space: nowrap; overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  cursor: grab;
+  user-select: none;
+}
+.bar:active { cursor: grabbing; }
+.bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
+.bar .grip { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.bar .grip.left { left: 0; } .bar .grip.right { right: 0; }
+.bar.todo { background: var(--st-todo); }
+.bar.doing { background: var(--st-doing); }
+.bar.done { background: var(--st-done); }
+
+/* サマリーバー(親) */
+.bar.summary {
+  top: 14px; height: calc(var(--row-h) - 26px);
+  background: #475569; border-radius: 3px; cursor: default;
+  box-shadow: none; opacity: .92;
+}
+.bar.summary::before, .bar.summary::after {
+  content: ""; position: absolute; bottom: -5px; width: 0; height: 0;
+  border-left: 5px solid transparent; border-right: 5px solid transparent;
+  border-top: 6px solid #475569;
+}
+.bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
+
+.milestone {
+  position: absolute; top: 50%; width: 16px; height: 16px;
+  transform: translate(-50%, -50%) rotate(45deg);
+  background: #f59e0b; border: 2px solid #b45309; z-index: 5;
+  cursor: pointer;
+}
+.milestone-label {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-size: 11px; color: #92400e; font-weight: 600; white-space: nowrap;
+  padding-left: 14px; pointer-events: none;
+}
+
+#depSvg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 4; overflow: visible; }
+.dep-path { stroke: var(--text-muted); stroke-width: 1.5; fill: none; }
+.dep-arrow { fill: var(--text-muted); }
+
+.gantt-empty {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: var(--text-faint); font-size: 13px; text-align: center; padding: 20px;
+}
+
+/* ===== アシストガイド ===== */
+.assist-pane { background: linear-gradient(180deg, var(--accent-soft), var(--surface) 140px); }
+.assist-head { padding: 18px 18px 8px; }
+.assist-head h2 { margin: 0 0 4px; font-size: 15px; color: var(--accent-strong); }
+.assist-head p { margin: 0; font-size: 12px; color: var(--text-muted); }
+
+.guide-steps { list-style: none; margin: 12px 0; padding: 0 12px; }
+.guide-step {
+  display: flex; gap: 10px; padding: 12px; margin-bottom: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); transition: border-color .15s, box-shadow .15s;
+}
+.guide-step.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.guide-step.done { opacity: .72; }
+.guide-check {
+  flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid var(--border-strong); display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: transparent; font-weight: 700;
+}
+.guide-step.done .guide-check { background: var(--accent); border-color: var(--accent); color: #fff; }
+.guide-step.active .guide-check { border-color: var(--accent); }
+.guide-body h3 { margin: 0 0 3px; font-size: 13px; }
+.guide-body p { margin: 0; font-size: 12px; color: var(--text-muted); }
+.guide-body .eg { display: block; margin-top: 5px; font-size: 11px; color: var(--text-faint); }
+
+.assist-tip {
+  margin: 4px 12px 18px; padding: 12px; border-radius: var(--radius);
+  background: var(--accent-soft); border: 1px dashed var(--accent-line);
+  font-size: 12px; color: var(--accent-strong);
+}
+
+/* ===== モーダル / パネル ===== */
+.modal-host, .panel-host {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 23, 42, .38);
+}
+.modal-host.hidden, .panel-host.hidden { display: none; }
+.modal {
+  width: min(520px, 92vw); max-height: 88vh; overflow-y: auto;
+  background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
+}
+.modal-head { padding: 18px 22px 6px; }
+.modal-head h2 { margin: 0; font-size: 16px; }
+.modal-body { padding: 10px 22px 4px; }
+.modal-foot { padding: 14px 22px 20px; display: flex; justify-content: flex-end; gap: 10px; }
+
+.panel-host { justify-content: flex-end; }
+.side-panel {
+  width: min(440px, 94vw); height: 100%; background: var(--surface);
+  box-shadow: var(--shadow-lg); overflow-y: auto;
+  animation: slidein .18s ease;
+}
+@keyframes slidein { from { transform: translateX(30px); opacity: .6; } to { transform: none; opacity: 1; } }
+.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.panel-head h2 { margin: 0; font-size: 15px; }
+.panel-body { padding: 16px 20px; }
+
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
+.field input, .field select, .field textarea {
+  width: 100%; height: 38px; padding: 0 11px;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 14px; color: var(--text); background: var(--surface);
+}
+.field textarea { height: auto; padding: 9px 11px; resize: vertical; min-height: 62px; }
+.field input:focus, .field select:focus, .field textarea:focus {
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.field .eg-hint { display: block; margin-top: 4px; font-size: 11px; color: var(--text-faint); font-style: italic; }
+.field.row2 { display: flex; gap: 12px; }
+.field.row2 > div { flex: 1; }
+.field-err { color: #dc2626; font-size: 12px; margin: -8px 0 10px; }
+
+.btn {
+  height: 38px; padding: 0 18px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong); background: var(--surface);
+  font-size: 13px; font-weight: 600; color: var(--text);
+}
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn.primary:hover { background: var(--accent-strong); }
+.btn.danger { color: #dc2626; border-color: #fca5a5; }
+.btn.danger:hover { background: #fef2f2; }
+
+.template-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 6px; }
+.template-card {
+  text-align: left; padding: 14px; border: 1px solid var(--border-strong);
+  border-radius: var(--radius); background: var(--surface);
+}
+.template-card:hover { border-color: var(--accent); background: var(--accent-soft); }
+.template-card h4 { margin: 0 0 5px; font-size: 13px; }
+.template-card p { margin: 0; font-size: 11px; color: var(--text-muted); }
+
+.hist-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.hist-item .when { color: var(--text-faint); font-size: 11px; }
+.hist-item .what { color: var(--text); }
+
+/* ステータスセグメント(モーダル内) */
+.seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted); border-right: 1px solid var(--border); }
+.seg button:last-child { border-right: 0; }
+.seg button.on.todo { background: var(--st-todo-bg); color: #475569; }
+.seg button.on.doing { background: var(--st-doing-bg); color: #075985; }
+.seg button.on.done { background: var(--st-done-bg); color: #065f46; }
+
+/* ===== トースト ===== */
+.toast-host { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.toast {
+  background: #1e293b; color: #fff; padding: 10px 18px; border-radius: 999px;
+  font-size: 13px; box-shadow: var(--shadow-md); animation: toastin .2s ease;
+}
+@keyframes toastin { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.hidden { display: none !important; }
+
+/* ===== 印刷 (PDF / 画像出力) ===== */
+@media print {
+  #appHeader, #treePane .pane-toolbar, #assistPane, .modal-host, .panel-host, .toast-host,
+  .row-actions, #newProjectBtn, #undoBtn, #historyBtn, #exportBtn { display: none !important; }
+  #appBody { display: block; }
+  #ganttPane { overflow: visible; }
+  .gantt-body { overflow: visible; }
+}
+
+</style>
+</head>
+<body data-mode="assist">
+  <div id="app">
+    <!-- ヘッダー -->
+    <header id="appHeader">
+      <div class="hd-left">
+        <span class="hd-logo">GanttChart</span>
+        <select id="projectSelect" class="hd-select" title="プロジェクトを切り替え"></select>
+        <button id="newProjectBtn" class="hd-btn" title="新しいプロジェクト">＋ 新規</button>
+      </div>
+      <div class="hd-center">
+        <div id="modeToggle" class="mode-toggle" title="モードを切り替え">
+          <button data-mode="assist" class="mode-opt">アシスト</button>
+          <button data-mode="normal" class="mode-opt">ノーマル</button>
+        </div>
+      </div>
+      <div class="hd-right">
+        <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ 節目</button>
+        <select id="granularitySelect" class="hd-select" title="表示粒度">
+          <option value="day">日</option>
+          <option value="week">週</option>
+          <option value="month">月</option>
+          <option value="quarter">四半期</option>
+        </select>
+        <button id="undoBtn" class="hd-btn" title="元に戻す (Ctrl+Z)" disabled>↶ 元に戻す</button>
+        <button id="historyBtn" class="hd-btn" title="変更履歴">履歴</button>
+        <button id="exportBtn" class="hd-btn" title="エクスポート / バックアップ">出力</button>
+      </div>
+    </header>
+
+    <!-- 本体: 左=ツリー / 中=ガント / 右=アシストガイド -->
+    <div id="appBody">
+      <section id="treePane" class="pane">
+        <div class="pane-toolbar">
+          <button id="addScheduleBtn" class="tool-btn primary">＋ スケジュール</button>
+          <span class="tree-col-head">名称 / 期間 / 状態</span>
+        </div>
+        <div id="treeList" class="tree-list"></div>
+      </section>
+
+      <section id="ganttPane" class="pane">
+        <div id="ganttHeader" class="gantt-header"></div>
+        <div id="ganttBody" class="gantt-body"></div>
+      </section>
+
+      <aside id="assistPane" class="pane assist-pane">
+        <div id="assistGuide"></div>
+      </aside>
+    </div>
+
+    <!-- モーダル / トースト -->
+    <div id="modalHost" class="modal-host hidden"></div>
+    <div id="panelHost" class="panel-host hidden"></div>
+    <div id="toastHost" class="toast-host"></div>
+  </div>
+
+  
+  <script>
+// ===== app/util.js =====
+// ==== app/util.js ====
+// 全モジュール共通のヘルパー。名前は全体で1つのグローバルスコープを共有するため一意に保つこと。
+
+function uid(prefix) {
+  return (prefix || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+// 日付は 'YYYY-MM-DD' 文字列で保持。TZの影響を避けるためローカル日付として手動パースする。
+function parseDate(s) {
+  if (!s) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (!m) return null;
+  return new Date(+m[1], +m[2] - 1, +m[3]);
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const y = d.getFullYear();
+  const mo = String(d.getMonth() + 1).padStart(2, '0');
+  const da = String(d.getDate()).padStart(2, '0');
+  return `${y}-${mo}-${da}`;
+}
+
+function todayDate() {
+  const n = new Date();
+  return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
+// 2日付間の暦日差(d2 - d1)。同日=0。
+function dayDiff(d1, d2) {
+  const a = Date.UTC(d1.getFullYear(), d1.getMonth(), d1.getDate());
+  const b = Date.UTC(d2.getFullYear(), d2.getMonth(), d2.getDate());
+  return Math.round((b - a) / 86400000);
+}
+
+function addDays(d, n) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+function isWeekend(d) {
+  const w = d.getDay();
+  return w === 0 || w === 6;
+}
+
+function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
+
+function fmtRangeLabel(d) {
+  return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+// トースト通知
+function toast(msg) {
+  const host = document.getElementById('toastHost');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => { el.style.opacity = '0'; el.style.transition = 'opacity .3s'; }, 1800);
+  setTimeout(() => el.remove(), 2150);
+}
+
+
+// ===== app/holidays.js =====
+// ==== app/holidays.js ====
+// 日本の祝日を内蔵し、稼働日計算に自動適用する(SPEC.md 8章)。
+// 出典・更新方法は SPEC.md の要確認事項。ここでは 2024〜2030 の内閣府公表データ + 振替休日を静的に持つ。
+// 稼働日 = 平日(月〜金)かつ祝日でない日。
+
+const Holidays = (() => {
+  // 'YYYY-MM-DD' の基準日（国民の祝日。振替休日は下で自動算出）
+  const BASE = [
+    // 2024
+    '2024-01-01','2024-01-08','2024-02-11','2024-02-12','2024-02-23','2024-03-20','2024-04-29',
+    '2024-05-03','2024-05-04','2024-05-05','2024-05-06','2024-07-15','2024-08-11','2024-08-12',
+    '2024-09-16','2024-09-22','2024-09-23','2024-10-14','2024-11-03','2024-11-04','2024-11-23',
+    // 2025
+    '2025-01-01','2025-01-13','2025-02-11','2025-02-23','2025-02-24','2025-03-20','2025-04-29',
+    '2025-05-03','2025-05-04','2025-05-05','2025-05-06','2025-07-21','2025-08-11','2025-09-15',
+    '2025-09-23','2025-10-13','2025-11-03','2025-11-23','2025-11-24',
+    // 2026
+    '2026-01-01','2026-01-12','2026-02-11','2026-02-23','2026-03-20','2026-04-29','2026-05-03',
+    '2026-05-04','2026-05-05','2026-05-06','2026-07-20','2026-08-11','2026-09-21','2026-09-22',
+    '2026-09-23','2026-10-12','2026-11-03','2026-11-23',
+    // 2027
+    '2027-01-01','2027-01-11','2027-02-11','2027-02-23','2027-03-21','2027-03-22','2027-04-29',
+    '2027-05-03','2027-05-04','2027-05-05','2027-07-19','2027-08-11','2027-09-20','2027-09-23',
+    '2027-10-11','2027-11-03','2027-11-23',
+    // 2028
+    '2028-01-01','2028-01-10','2028-02-11','2028-02-23','2028-03-20','2028-04-29','2028-05-03',
+    '2028-05-04','2028-05-05','2028-07-17','2028-08-11','2028-09-18','2028-09-22','2028-10-09',
+    '2028-11-03','2028-11-23',
+    // 2029
+    '2029-01-01','2029-01-08','2029-02-11','2029-02-12','2029-02-23','2029-03-20','2029-04-29',
+    '2029-04-30','2029-05-03','2029-05-04','2029-05-05','2029-07-16','2029-08-11','2029-09-17',
+    '2029-09-23','2029-09-24','2029-10-08','2029-11-03','2029-11-23',
+    // 2030
+    '2030-01-01','2030-01-14','2030-02-11','2030-02-23','2030-03-20','2030-04-29','2030-05-03',
+    '2030-05-04','2030-05-05','2030-05-06','2030-07-15','2030-08-11','2030-08-12','2030-09-16',
+    '2030-09-23','2030-10-14','2030-11-03','2030-11-04','2030-11-23',
+  ];
+
+  const set = new Set(BASE);
+
+  // 振替休日: 祝日が日曜のとき、その後の最初の非祝日を休日にする。
+  const sundayHolidays = BASE.filter(s => parseDate(s).getDay() === 0);
+  for (const s of sundayHolidays) {
+    let d = addDays(parseDate(s), 1);
+    while (set.has(fmtDate(d))) d = addDays(d, 1);
+    set.add(fmtDate(d));
+  }
+
+  function isHoliday(d) { return set.has(fmtDate(d)); }
+  function isWorkingDay(d) { return !isWeekend(d) && !isHoliday(d); }
+
+  // start〜end(両端含む)の稼働日数。start>end は 0。
+  function countWorkingDays(start, end) {
+    if (!start || !end || dayDiff(start, end) < 0) return 0;
+    let n = 0;
+    let d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    while (dayDiff(d, end) >= 0) {
+      if (isWorkingDay(d)) n++;
+      d = addDays(d, 1);
+    }
+    return n;
+  }
+
+  // start から数えて稼働日 count 日分の期間の終了日を返す(start自身が稼働日なら1日目)。
+  function endAfterWorkingDays(start, count) {
+    if (!start || count < 1) return start;
+    let remaining = count;
+    let d = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    // start が非稼働日なら次の稼働日まで送る
+    while (!isWorkingDay(d)) d = addDays(d, 1);
+    while (remaining > 1) {
+      d = addDays(d, 1);
+      if (isWorkingDay(d)) remaining--;
+    }
+    return d;
+  }
+
+  // date が非稼働日なら、次の稼働日へ送る。
+  function nextWorkingDay(date) {
+    let d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    while (!isWorkingDay(d)) d = addDays(d, 1);
+    return d;
+  }
+
+  return { isHoliday, isWorkingDay, countWorkingDays, endAfterWorkingDays, nextWorkingDay };
+})();
+
+
+// ===== app/db.js =====
+// ==== app/db.js ====
+// 生の IndexedDB を Promise でラップ。ラッパーライブラリは使わない。
+// 変更は必ず DB.put / DB.remove を経由する(履歴ロギングもここで行う)。
+
+const DB = (() => {
+  const DB_NAME = 'ganttchart';
+  const DB_VERSION = 1;
+  // projectId でインデックスするドメインストア。
+  const DOMAIN_STORES = ['schedules', 'milestones', 'dependencies', 'comments', 'notes', 'historyLog'];
+  // 履歴追跡の対象(CLAUDE.md / SPEC.md)。schedules にはタスクも含まれる。
+  const HISTORY_DOMAINS = ['schedules', 'milestones', 'comments'];
+
+  let _db = null;
+
+  function open() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains('projects')) {
+          db.createObjectStore('projects', { keyPath: 'id' });
+        }
+        for (const s of DOMAIN_STORES) {
+          if (!db.objectStoreNames.contains(s)) {
+            const store = db.createObjectStore(s, { keyPath: 'id' });
+            store.createIndex('projectId', 'projectId', { unique: false });
+          }
+        }
+        if (!db.objectStoreNames.contains('meta')) {
+          db.createObjectStore('meta', { keyPath: 'key' });
+        }
+      };
+      req.onsuccess = () => { _db = req.result; resolve(_db); };
+      req.onerror = () => reject(req.error);
+    });
+  }
+
+  function tx(store, mode) { return _db.transaction(store, mode).objectStore(store); }
+
+  function reqP(request) {
+    return new Promise((resolve, reject) => {
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+  }
+
+  function getAll(store) { return reqP(tx(store, 'readonly').getAll()); }
+
+  function getAllByProject(store, projectId) {
+    return reqP(tx(store, 'readonly').index('projectId').getAll(projectId));
+  }
+
+  function get(store, id) { return reqP(tx(store, 'readonly').get(id)); }
+
+  async function put(store, record, historyMeta) {
+    await reqP(tx(store, 'readwrite').put(record));
+    if (historyMeta && HISTORY_DOMAINS.includes(store)) {
+      await _log(record.projectId, historyMeta);
+    }
+    return record;
+  }
+
+  async function remove(store, id, historyMeta) {
+    let projectId = historyMeta && historyMeta.projectId;
+    await reqP(tx(store, 'readwrite').delete(id));
+    if (historyMeta && HISTORY_DOMAINS.includes(store)) {
+      await _log(projectId, historyMeta);
+    }
+  }
+
+  // 生トランザクションでの一括削除(カスケード)。onsuccess 連鎖で await を挟まない。
+  function bulkRemove(store, ids) {
+    if (!ids.length) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const t = _db.transaction(store, 'readwrite');
+      const os = t.objectStore(store);
+      t.oncomplete = () => resolve();
+      t.onerror = () => reject(t.error);
+      for (const id of ids) os.delete(id);
+    });
+  }
+
+  function _log(projectId, meta) {
+    const entry = {
+      id: uid('h'),
+      projectId,
+      at: Date.now(),
+      action: meta.action || 'change',
+      label: meta.label || '',
+    };
+    return reqP(tx('historyLog', 'readwrite').put(entry));
+  }
+
+  // meta ストア(選択中プロジェクトIDなど)
+  function getMeta(key) { return reqP(tx('meta', 'readonly').get(key)); }
+  function setMeta(key, value) { return reqP(tx('meta', 'readwrite').put({ key, value })); }
+
+  return {
+    open, getAll, getAllByProject, get, put, remove, bulkRemove,
+    getMeta, setMeta, HISTORY_DOMAINS,
+  };
+})();
+
+
+// ===== app/state.js =====
+// ==== app/state.js ====
+// 共有可変ストア + タグスコープの pub/sub。
+
+// 選択中プロジェクトのドメインデータ(プロジェクト切替のたびに全再読み込み)。
+const state = {
+  projects: [],       // 全プロジェクトのメタ(一覧用)
+  project: null,      // 選択中プロジェクト
+  schedules: [],      // schedule/subschedule/task を統合した木ノード
+  milestones: [],
+  dependencies: [],
+  history: [],        // 選択中プロジェクトの historyLog
+};
+
+// UI専用の一時状態(再レンダリングで消えてはいけないもの)。
+const uiState = {
+  selectedId: null,       // 選択中ツリーノード
+  collapsed: {},          // { nodeId: true } 折りたたみ
+  granularity: 'day',     // day/week/month/quarter
+  undoStack: [],          // 直近のスナップショット(元に戻す用)
+};
+
+const Store = (() => {
+  const subs = [];  // { tags:Set, fn }
+
+  function subscribe(tags, fn) {
+    subs.push({ tags: new Set(tags), fn });
+  }
+
+  function _notify(tags) {
+    const t = new Set(tags);
+    for (const s of subs) {
+      for (const tag of t) {
+        if (s.tags.has(tag)) { s.fn(); break; }
+      }
+    }
+  }
+
+  function setState(patch, tags) {
+    Object.assign(state, patch);
+    _notify(tags || []);
+  }
+
+  function setUiState(patch, tags) {
+    Object.assign(uiState, patch);
+    _notify(tags || []);
+  }
+
+  // タグ指定なしで、全レンダー関数を呼ぶ(プロジェクト切替など全面更新時)。
+  function renderAll() {
+    const seen = new Set();
+    for (const s of subs) {
+      if (seen.has(s.fn)) continue;
+      seen.add(s.fn);
+      s.fn();
+    }
+  }
+
+  return { subscribe, setState, setUiState, renderAll };
+})();
+
+
+// ===== app/ui.js =====
+// ==== app/ui.js ====
+// 共有モーダル / サイドパネルのホスト。呼び出しのたびにホストの中身を完全に置き換えるため、
+// モーダル本体の内部要素にリスナーをアタッチしても蓄積しない。
+
+const UI = (() => {
+  function openModal(html, opts) {
+    opts = opts || {};
+    const host = document.getElementById('modalHost');
+    host.innerHTML = `<div class="modal" role="dialog" aria-modal="true">${html}</div>`;
+    host.classList.remove('hidden');
+
+    const modal = host.firstElementChild;
+    const form = modal.querySelector('form');
+
+    function close() { host.classList.add('hidden'); host.innerHTML = ''; }
+
+    // 閉じる系
+    host.onclick = (e) => { if (e.target === host) close(); };
+    modal.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
+
+    if (form && opts.onSubmit) {
+      form.onsubmit = (e) => {
+        e.preventDefault();
+        const result = opts.onSubmit(form, modal);
+        if (result !== false) close();  // false のときだけ開いたまま(バリデーションエラー)
+      };
+    }
+    if (opts.onOpen) opts.onOpen(modal);
+    const first = modal.querySelector('input, select, textarea');
+    if (first) first.focus();
+    return { close, modal };
+  }
+
+  function openPanel(html, opts) {
+    opts = opts || {};
+    const host = document.getElementById('panelHost');
+    host.innerHTML = `<div class="side-panel">${html}</div>`;
+    host.classList.remove('hidden');
+    const panel = host.firstElementChild;
+    function close() { host.classList.add('hidden'); host.innerHTML = ''; }
+    host.onclick = (e) => { if (e.target === host) close(); };
+    panel.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
+    if (opts.onOpen) opts.onOpen(panel);
+    return { close, panel };
+  }
+
+  function confirm(message, opts) {
+    opts = opts || {};
+    return new Promise((resolve) => {
+      const { close } = openModal(`
+        <div class="modal-head"><h2>${escapeHtml(opts.title || '確認')}</h2></div>
+        <div class="modal-body"><p>${escapeHtml(message)}</p></div>
+        <div class="modal-foot">
+          <button class="btn" data-act="cancel">キャンセル</button>
+          <button class="btn ${opts.danger ? 'danger' : 'primary'}" data-act="ok">${escapeHtml(opts.okLabel || 'OK')}</button>
+        </div>`, {
+        onOpen(modal) {
+          modal.querySelector('[data-act="ok"]').onclick = () => { close(); resolve(true); };
+          modal.querySelector('[data-act="cancel"]').onclick = () => { close(); resolve(false); };
+        }
+      });
+    });
+  }
+
+  return { openModal, openPanel, confirm };
+})();
+
+
+// ===== app/projects.js =====
+// ==== app/projects.js ====
+// プロジェクトの CRUD と切り替え。切替のたびにドメインデータを全再読み込みする。
+
+const Projects = (() => {
+
+  async function loadAll() {
+    const projects = await DB.getAll('projects');
+    projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+    Store.setState({ projects }, []);
+    return projects;
+  }
+
+  // 選択中プロジェクトのドメインデータを IndexedDB から全ロードして state に載せる。
+  async function select(projectId) {
+    const project = await DB.get('projects', projectId);
+    if (!project) return;
+    const [schedules, milestones, dependencies, history] = await Promise.all([
+      DB.getAllByProject('schedules', projectId),
+      DB.getAllByProject('milestones', projectId),
+      DB.getAllByProject('dependencies', projectId),
+      DB.getAllByProject('historyLog', projectId),
+    ]);
+    history.sort((a, b) => b.at - a.at);
+    await DB.setMeta('currentProjectId', projectId);
+    document.body.dataset.mode = project.mode || 'assist';
+    Store.setUiState({ selectedId: null, undoStack: [] }, []);
+    Store.setState({ project, schedules, milestones, dependencies, history }, []);
+    Store.renderAll();
+  }
+
+  async function create(name, mode, templateKey) {
+    const now = Date.now();
+    const project = { id: uid('p'), name: name || '新しいプロジェクト', mode: mode || 'assist', createdAt: now, updatedAt: now };
+    await DB.put('projects', project);
+    if (templateKey && templateKey !== 'blank') {
+      await Assist.applyTemplate(project.id, templateKey);
+    }
+    await loadAll();
+    await select(project.id);
+    return project;
+  }
+
+  async function rename(name) {
+    if (!state.project) return;
+    const p = { ...state.project, name, updatedAt: Date.now() };
+    await DB.put('projects', p);
+    await loadAll();
+    Store.setState({ project: p }, ['header']);
+  }
+
+  async function setMode(mode) {
+    if (!state.project || state.project.mode === mode) return;
+    const p = { ...state.project, mode, updatedAt: Date.now() };
+    await DB.put('projects', p);
+    document.body.dataset.mode = mode;
+    Store.setState({ project: p }, []);
+    Store.renderAll();
+  }
+
+  async function touch() {
+    // ドメイン変更時に updatedAt を進める(一覧の並び順のため)。
+    if (!state.project) return;
+    const p = { ...state.project, updatedAt: Date.now() };
+    await DB.put('projects', p);
+    state.project = p;
+  }
+
+  async function remove(projectId) {
+    // 関連ドメインを全削除してからプロジェクトを消す。
+    for (const store of ['schedules', 'milestones', 'dependencies', 'comments', 'notes', 'historyLog']) {
+      const recs = await DB.getAllByProject(store, projectId);
+      await DB.bulkRemove(store, recs.map(r => r.id));
+    }
+    await DB.remove('projects', projectId);
+    const projects = await loadAll();
+    if (state.project && state.project.id === projectId) {
+      if (projects.length) await select(projects[0].id);
+      else await select(await ensureOne());
+    }
+  }
+
+  // プロジェクトが1つも無ければ既定を1つ作る。
+  async function ensureOne() {
+    const projects = await DB.getAll('projects');
+    if (projects.length) return projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))[0].id;
+    const p = await create('はじめてのプロジェクト', 'assist', 'teamdev');
+    return p.id;
+  }
+
+  return { loadAll, select, create, rename, setMode, touch, remove, ensureOne };
+})();
+
+
+// ===== app/schedules.js =====
+// ==== app/schedules.js ====
+// スケジュール木(スケジュール→サブスケジュール→タスク、最大3階層)の CRUD と描画。
+// タスクは独立ストアを持たず、schedules 内の「子を持たない末端ノード」。
+
+const Schedules = (() => {
+  const LEVEL_NAME = ['スケジュール', 'サブスケジュール', 'タスク'];
+  const MAX_LEVEL = 2; // 0,1,2 の3階層
+
+  // --- 木の操作 ---
+  function childrenOf(parentId) {
+    return state.schedules
+      .filter(n => n.parentId === parentId)
+      .sort((a, b) => a.order - b.order);
+  }
+  function byId(id) { return state.schedules.find(n => n.id === id); }
+
+  function levelOf(node) {
+    let lv = 0, p = node.parentId;
+    while (p) { lv++; const par = byId(p); p = par ? par.parentId : null; }
+    return lv;
+  }
+  function hasChildren(id) { return state.schedules.some(n => n.parentId === id); }
+
+  // 表示番号 "1.2.3" を毎回算出(保存しない)。
+  function computeNumbering() {
+    const map = {};
+    function walk(parentId, prefix) {
+      childrenOf(parentId).forEach((n, i) => {
+        const num = prefix ? `${prefix}.${i + 1}` : `${i + 1}`;
+        map[n.id] = num;
+        walk(n.id, num);
+      });
+    }
+    walk(null, '');
+    return map;
+  }
+
+  // 折りたたみを反映した表示順の平坦リスト。
+  function flattenForDisplay() {
+    const rows = [];
+    function walk(parentId, level) {
+      for (const n of childrenOf(parentId)) {
+        const kids = hasChildren(n.id);
+        rows.push({ node: n, level, hasChildren: kids });
+        if (kids && !uiState.collapsed[n.id]) walk(n.id, level + 1);
+      }
+    }
+    walk(null, 0);
+    return rows;
+  }
+
+  // --- ステータス集計(子から自動)---
+  function effectiveStatus(node) {
+    const kids = childrenOf(node.id);
+    if (!kids.length) return node.status || 'todo';
+    const states = kids.map(effectiveStatus);
+    if (states.every(s => s === 'done')) return 'done';
+    if (states.every(s => s === 'todo')) return 'todo';
+    return 'doing';
+  }
+
+  // --- 期間の集計(親は子の min/max。葉は自身の日付)---
+  function effectiveSpan(node) {
+    const kids = childrenOf(node.id);
+    if (!kids.length) {
+      const s = parseDate(node.startDate), e = parseDate(node.endDate);
+      if (s && e) return { start: s, end: e };
+      return null;
+    }
+    let start = null, end = null;
+    for (const k of kids) {
+      const sp = effectiveSpan(k);
+      if (!sp) continue;
+      if (!start || sp.start < start) start = sp.start;
+      if (!end || sp.end > end) end = sp.end;
+    }
+    return start && end ? { start, end } : null;
+  }
+
+  // --- レンダリング: 左ツリー ---
+  function renderTree() {
+    const host = document.getElementById('treeList');
+    if (!state.project) { host.innerHTML = ''; return; }
+    const rows = flattenForDisplay();
+    if (!rows.length) {
+      host.innerHTML = `<div class="tree-empty">まだスケジュールがありません。<br>「＋ スケジュール」から始めましょう。</div>`;
+      return;
+    }
+    const nums = computeNumbering();
+    host.innerHTML = rows.map(r => {
+      const n = r.node;
+      const st = effectiveStatus(n);
+      const sp = effectiveSpan(n);
+      const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
+      const twist = r.hasChildren
+        ? `<button class="twist" data-toggle="${n.id}">${uiState.collapsed[n.id] ? '▶' : '▼'}</button>`
+        : `<span class="twist leaf">•</span>`;
+      const canAddChild = r.level < MAX_LEVEL;
+      return `
+        <div class="tree-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
+             style="padding-left:${8 + r.level * 16}px">
+          ${twist}
+          <span class="status-dot ${st}"></span>
+          <span class="num">${nums[n.id] || ''}</span>
+          <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
+          <span class="meta">${meta}</span>
+          <span class="row-actions">
+            ${canAddChild ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : ''}
+            <button class="icon-btn" data-edit="${n.id}" title="編集">✎</button>
+            <button class="icon-btn" data-del="${n.id}" title="削除">🗑</button>
+          </span>
+        </div>`;
+    }).join('');
+  }
+
+  // --- 例文(アシストモードで消えないヒント)---
+  function examples(level) {
+    return [
+      { name: '「定義」「設計」「実装」「フォロー」', note: '例: このフェーズのゴールを一言で' },
+      { name: '「機能要件定義」「基本設計書作成」', note: '例: 成果物・工程の単位で分ける' },
+      { name: '「ヒアリングメモ作成」「要求一覧作成」', note: '例: 実際に手を動かす作業' },
+    ][level] || { name: '', note: '' };
+  }
+
+  // --- 追加/編集モーダル ---
+  function openEditor(opts) {
+    // opts: { id } 既存編集 / { parentId, level } 新規
+    const editing = opts.id ? byId(opts.id) : null;
+    const level = editing ? levelOf(editing) : opts.level;
+    const parentId = editing ? editing.parentId : opts.parentId;
+    const isLeaf = editing ? !hasChildren(editing.id) : true;
+    const assist = document.body.dataset.mode === 'assist';
+    const eg = examples(level);
+    const n = editing || {};
+
+    const start = n.startDate || '';
+    const end = n.endDate || '';
+    let dur = '';
+    if (start && end) dur = Holidays.countWorkingDays(parseDate(start), parseDate(end));
+
+    const egHint = (txt) => assist ? `<span class="eg-hint">${escapeHtml(txt)}</span>` : '';
+    const statusSeg = isLeaf ? `
+      <div class="field">
+        <label>状態</label>
+        <div class="seg" data-status="${n.status || 'todo'}">
+          <button type="button" data-st="todo" class="${(n.status||'todo')==='todo'?'on todo':''}">未着手</button>
+          <button type="button" data-st="doing" class="${n.status==='doing'?'on doing':''}">進行中</button>
+          <button type="button" data-st="done" class="${n.status==='done'?'on done':''}">完了</button>
+        </div>
+      </div>` : `<div class="field"><label>状態</label><p style="font-size:12px;color:var(--text-muted);margin:0">子タスクから自動集計されます(現在: ${statusLabel(effectiveStatus(editing))})</p></div>`;
+
+    // 先行タスク(依存関係)— 既存の葉タスクを編集するときだけ表示
+    let depsField = '';
+    if (editing && isLeaf) {
+      const preds = Dependencies.predecessorsOf(editing.id);
+      const others = Dependencies.leafTasks().filter(t => t.id !== editing.id);
+      if (others.length) {
+        const predOpts = others.map(t =>
+          `<label style="display:flex;align-items:center;gap:8px;font-weight:400;margin-bottom:4px">
+             <input type="checkbox" name="pred" value="${t.id}" ${preds.includes(t.id) ? 'checked' : ''} style="width:auto;height:auto">
+             ${escapeHtml(t.name)}
+           </label>`).join('');
+        depsField = `<div class="field"><label>先行タスク(これが終わってから開始)</label>
+          <div style="max-height:120px;overflow:auto;border:1px solid var(--border);border-radius:7px;padding:8px">${predOpts}</div>
+          ${assist ? '<span class="eg-hint">チェックすると、先行タスクの終了に合わせて自動で日程が調整されます</span>' : ''}</div>`;
+      }
+    }
+
+    const dateFields = isLeaf ? `
+      <div class="field row2">
+        <div><label>開始日</label><input type="date" name="startDate" value="${start}">${egHint('例: 2026-08-01')}</div>
+        <div><label>期間(稼働日)</label><input type="number" name="duration" min="1" value="${dur}">${egHint('例: 10')}</div>
+      </div>
+      <div class="field"><label>終了日(自動計算 / 直接入力可)</label><input type="date" name="endDate" value="${end}">${egHint('土日・祝日を除いて計算します')}</div>
+    ` : `<div class="field"><label>期間</label><p style="font-size:12px;color:var(--text-muted);margin:0">子の期間から自動で決まります。</p></div>`;
+
+    UI.openModal(`
+      <div class="modal-head"><h2>${editing ? LEVEL_NAME[level] + 'を編集' : LEVEL_NAME[level] + 'を追加'}</h2></div>
+      <form>
+        <div class="modal-body">
+          <div class="field">
+            <label>${LEVEL_NAME[level]}名</label>
+            <input name="name" value="${escapeHtml(n.name || '')}" placeholder="${assist ? '' : LEVEL_NAME[level] + '名'}" autocomplete="off">
+            ${egHint('例: ' + eg.name)}
+          </div>
+          ${dateFields}
+          <div class="field">
+            <label>担当者</label>
+            <input name="assignee" value="${escapeHtml(n.assignee || '')}" autocomplete="off">
+            ${egHint('例: 田中さん')}
+          </div>
+          ${statusSeg}
+          ${depsField}
+          <div class="field">
+            <label>メモ・目的</label>
+            <textarea name="note">${escapeHtml(n.note || '')}</textarea>
+            ${egHint(eg.note)}
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn" data-close>キャンセル</button>
+          <button type="submit" class="btn primary">${editing ? '保存' : '追加'}</button>
+        </div>
+      </form>
+    `, {
+      onOpen(modal) {
+        // ステータスセグメント
+        const seg = modal.querySelector('.seg');
+        if (seg) seg.querySelectorAll('button').forEach(b => b.onclick = () => {
+          seg.dataset.status = b.dataset.st;
+          seg.querySelectorAll('button').forEach(x => x.className = '');
+          b.className = 'on ' + b.dataset.st;
+        });
+        // 日付 ↔ 期間の相互自動計算
+        const sIn = modal.querySelector('[name=startDate]');
+        const dIn = modal.querySelector('[name=duration]');
+        const eIn = modal.querySelector('[name=endDate]');
+        if (sIn && dIn && eIn) {
+          const fromDur = () => {
+            const s = parseDate(sIn.value); const d = parseInt(dIn.value, 10);
+            if (s && d >= 1) eIn.value = fmtDate(Holidays.endAfterWorkingDays(s, d));
+          };
+          const fromEnd = () => {
+            const s = parseDate(sIn.value); const e = parseDate(eIn.value);
+            if (s && e && dayDiff(s, e) >= 0) dIn.value = Holidays.countWorkingDays(s, e);
+          };
+          sIn.onchange = () => { if (dIn.value) fromDur(); else fromEnd(); };
+          dIn.oninput = fromDur;
+          eIn.onchange = fromEnd;
+        }
+      },
+      onSubmit(form) {
+        const name = form.name.value.trim();
+        if (!name) { toast('名称を入力してください'); return false; }
+        const seg = form.querySelector('.seg');
+        const status = seg ? seg.dataset.status : (n.status || 'todo');
+        const data = {
+          name,
+          assignee: form.assignee.value.trim(),
+          startDate: form.startDate ? form.startDate.value : (n.startDate || ''),
+          endDate: form.endDate ? form.endDate.value : (n.endDate || ''),
+          status,
+          note: form.note.value.trim(),
+        };
+        if (editing) {
+          const predIds = isLeaf
+            ? Array.from(form.querySelectorAll('input[name=pred]:checked')).map(i => i.value)
+            : null;
+          saveNode(editing.id, data, predIds);
+        } else add(parentId, level, data);
+      }
+    });
+  }
+
+  function statusLabel(s) { return { todo: '未着手', doing: '進行中', done: '完了' }[s] || '未着手'; }
+
+  // --- 変更操作 ---
+  async function add(parentId, level, data) {
+    History.snapshot();
+    const siblings = childrenOf(parentId);
+    const node = {
+      id: uid('s'), projectId: state.project.id, parentId: parentId || null,
+      order: siblings.length, ...data,
+    };
+    state.schedules.push(node);
+    await DB.put('schedules', node, { action: 'add', label: `${LEVEL_NAME[level]}「${data.name}」を追加` });
+    await Projects.touch();
+    Store.setUiState({ selectedId: node.id }, []);
+    afterChange();
+  }
+
+  async function saveNode(id, data, predIds) {
+    History.snapshot();
+    const node = byId(id);
+    Object.assign(node, data);
+    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」を編集` });
+    await Projects.touch();
+    if (predIds) await Dependencies.setPredecessors(id, predIds);
+    await Dependencies.rescheduleFrom(id);
+    afterChange();
+  }
+
+  // ドラッグ等からの日付更新(モーダルを介さない)。
+  async function updateDates(id, startDate, endDate) {
+    History.snapshot();
+    const node = byId(id);
+    node.startDate = startDate; node.endDate = endDate;
+    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」の期間を変更` });
+    await Projects.touch();
+    await Dependencies.rescheduleFrom(id);
+    afterChange();
+  }
+
+  async function setStatus(id, status) {
+    History.snapshot();
+    const node = byId(id);
+    node.status = status;
+    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」を${statusLabel(status)}に` });
+    await Projects.touch();
+    afterChange();
+  }
+
+  async function del(id) {
+    const node = byId(id);
+    const ok = await UI.confirm(`「${node.name}」${hasChildren(id) ? 'と、その配下すべて' : ''}を削除します。よろしいですか?`, { danger: true, okLabel: '削除' });
+    if (!ok) return;
+    History.snapshot();
+    // 子孫を集める(自分自身は最後に別途 remove してログを残す)
+    const descIds = [];
+    (function collect(pid) { for (const c of state.schedules.filter(n => n.parentId === pid)) { descIds.push(c.id); collect(c.id); } })(id);
+    const allIds = descIds.concat([id]);
+    // 依存関係も掃除
+    const deps = state.dependencies.filter(d => allIds.includes(d.fromId) || allIds.includes(d.toId));
+    state.schedules = state.schedules.filter(n => !allIds.includes(n.id));
+    state.dependencies = state.dependencies.filter(d => !allIds.includes(d.fromId) && !allIds.includes(d.toId));
+    await DB.bulkRemove('schedules', descIds);
+    await DB.bulkRemove('dependencies', deps.map(d => d.id));
+    await DB.remove('schedules', id, { projectId: state.project.id, action: 'delete', label: `「${node.name}」を削除` });
+    await Projects.touch();
+    if (uiState.selectedId === id) Store.setUiState({ selectedId: null }, []);
+    afterChange();
+  }
+
+  async function reorder(id, newParentId, newOrder) {
+    History.snapshot();
+    const node = byId(id);
+    node.parentId = newParentId;
+    node.order = newOrder;
+    // 兄弟の order を詰め直す
+    childrenOf(newParentId).forEach((n, i) => { n.order = i; });
+    for (const n of childrenOf(newParentId)) await DB.put('schedules', n);
+    await Projects.touch();
+    afterChange();
+  }
+
+  function afterChange() {
+    Store.renderAll();
+  }
+
+  return {
+    childrenOf, byId, levelOf, hasChildren, computeNumbering, flattenForDisplay,
+    effectiveStatus, effectiveSpan, renderTree, openEditor, add, saveNode, del, reorder,
+    updateDates, setStatus, LEVEL_NAME, MAX_LEVEL, statusLabel,
+  };
+})();
+
+
+// ===== app/dependencies.js =====
+// ==== app/dependencies.js ====
+// タスク同士の依存関係(先行→後続)。先行の日程が変わると後続を自動リスケジュールする。
+
+const Dependencies = (() => {
+
+  function leafTasks() {
+    return state.schedules.filter(n => !Schedules.hasChildren(n.id));
+  }
+
+  function predecessorsOf(toId) {
+    return state.dependencies.filter(d => d.toId === toId).map(d => d.fromId);
+  }
+
+  // fromId → toId を追加すると循環するか?
+  function wouldCycle(fromId, toId) {
+    // toId から辿って fromId に到達したら循環。
+    const stack = [toId];
+    const seen = new Set();
+    while (stack.length) {
+      const cur = stack.pop();
+      if (cur === fromId) return true;
+      if (seen.has(cur)) continue;
+      seen.add(cur);
+      for (const d of state.dependencies.filter(x => x.fromId === cur)) stack.push(d.toId);
+    }
+    return false;
+  }
+
+  // 後続タスク(toId)の先行集合を fromIds に一致させる。
+  async function setPredecessors(toId, fromIds) {
+    const current = state.dependencies.filter(d => d.toId === toId);
+    // 削除
+    for (const d of current) {
+      if (!fromIds.includes(d.fromId)) {
+        state.dependencies = state.dependencies.filter(x => x.id !== d.id);
+        await DB.remove('dependencies', d.id);
+      }
+    }
+    // 追加
+    for (const fromId of fromIds) {
+      if (fromId === toId) continue;
+      if (current.some(d => d.fromId === fromId)) continue;
+      if (wouldCycle(fromId, toId)) { toast('循環する依存関係は設定できません'); continue; }
+      const dep = { id: uid('d'), projectId: state.project.id, fromId, toId };
+      state.dependencies.push(dep);
+      await DB.put('dependencies', dep);
+    }
+    // 先行の終了に合わせて後続を寄せる
+    for (const fromId of fromIds) await rescheduleFrom(fromId);
+  }
+
+  // nodeId(先行)の日程変更を後続へ波及。循環は visited で防止。
+  async function rescheduleFrom(nodeId, visited) {
+    visited = visited || new Set();
+    if (visited.has(nodeId)) return;
+    visited.add(nodeId);
+    const from = Schedules.byId(nodeId);
+    if (!from) return;
+    const fromEnd = parseDate(from.endDate);
+    if (!fromEnd) return;
+    for (const d of state.dependencies.filter(x => x.fromId === nodeId)) {
+      const to = Schedules.byId(d.toId);
+      if (!to) continue;
+      const earliest = Holidays.nextWorkingDay(addDays(fromEnd, 1));
+      const toStart = parseDate(to.startDate);
+      if (!toStart || dayDiff(earliest, toStart) < 0) {
+        const dur = (to.startDate && to.endDate)
+          ? Math.max(1, Holidays.countWorkingDays(parseDate(to.startDate), parseDate(to.endDate))) : 1;
+        to.startDate = fmtDate(earliest);
+        to.endDate = fmtDate(Holidays.endAfterWorkingDays(earliest, dur));
+        await DB.put('schedules', to);
+        await rescheduleFrom(to.id, visited);
+      }
+    }
+  }
+
+  return { leafTasks, predecessorsOf, wouldCycle, setPredecessors, rescheduleFrom };
+})();
+
+
+// ===== app/milestones.js =====
+// ==== app/milestones.js ====
+// マイルストーン: 期間を持たない、特定日付の目印(納期・レビュー会など)。
+
+const Milestones = (() => {
+
+  function openEditor(id) {
+    const editing = id ? state.milestones.find(m => m.id === id) : null;
+    const assist = document.body.dataset.mode === 'assist';
+    const m = editing || {};
+    const h = UI.openModal(`
+      <div class="modal-head"><h2>${editing ? 'マイルストーンを編集' : 'マイルストーンを追加'}</h2></div>
+      <form>
+        <div class="modal-body">
+          <div class="field">
+            <label>名称</label>
+            <input name="name" value="${escapeHtml(m.name || '')}" autocomplete="off">
+            ${assist ? '<span class="eg-hint">例: 納品、中間レビュー、リリース</span>' : ''}
+          </div>
+          <div class="field">
+            <label>日付</label>
+            <input type="date" name="date" value="${m.date || ''}">
+          </div>
+        </div>
+        <div class="modal-foot">
+          ${editing ? '<button type="button" class="btn danger" data-del>削除</button>' : ''}
+          <button type="button" class="btn" data-close style="margin-left:auto">キャンセル</button>
+          <button type="submit" class="btn primary">${editing ? '保存' : '追加'}</button>
+        </div>
+      </form>
+    `, {
+      onOpen(modal) {
+        const delBtn = modal.querySelector('[data-del]');
+        if (delBtn) delBtn.onclick = async () => { h.close(); await remove(editing.id); };
+      },
+      onSubmit(form) {
+        const name = form.name.value.trim();
+        const date = form.date.value;
+        if (!name) { toast('名称を入力してください'); return false; }
+        if (!date) { toast('日付を入力してください'); return false; }
+        if (editing) save(editing.id, { name, date });
+        else add({ name, date });
+      }
+    });
+  }
+
+  async function add(data) {
+    History.snapshot();
+    const m = { id: uid('m'), projectId: state.project.id, ...data };
+    state.milestones.push(m);
+    await DB.put('milestones', m, { action: 'add', label: `マイルストーン「${data.name}」を追加` });
+    await Projects.touch();
+    Store.renderAll();
+  }
+
+  async function save(id, data) {
+    History.snapshot();
+    const m = state.milestones.find(x => x.id === id);
+    Object.assign(m, data);
+    await DB.put('milestones', m, { action: 'edit', label: `マイルストーン「${m.name}」を編集` });
+    await Projects.touch();
+    Store.renderAll();
+  }
+
+  async function remove(id) {
+    History.snapshot();
+    const m = state.milestones.find(x => x.id === id);
+    state.milestones = state.milestones.filter(x => x.id !== id);
+    await DB.remove('milestones', id, { projectId: state.project.id, action: 'delete', label: `マイルストーン「${m ? m.name : ''}」を削除` });
+    await Projects.touch();
+    Store.renderAll();
+  }
+
+  return { openEditor, add, save, remove };
+})();
+
+
+// ===== app/gantt.js =====
+// ==== app/gantt.js ====
+// 日付↔ピクセル変換を集約し、ヘッダー目盛り・グリッド・バー・マイルストーン・今日線・依存線を描画。
+// バーはドラッグで移動/期間変更でき、フォーム編集(schedules.js)と同じデータを更新する。
+
+const Gantt = (() => {
+  const PX_PER_DAY = { day: 30, week: 16, month: 7, quarter: 3.5 };
+  const ROW_H = 38;
+
+  // 現在の描画スケール(ドラッグ時の逆変換に使う)。
+  let scale = { origin: null, pxPerDay: 30, width: 0 };
+
+  function computeDateScale() {
+    const pxPerDay = PX_PER_DAY[uiState.granularity] || 30;
+    let min = null, max = null;
+    for (const n of state.schedules) {
+      if (Schedules.hasChildren(n.id)) continue; // 葉のみ実日付を持つ
+      const sp = Schedules.effectiveSpan(n);
+      if (!sp) continue;
+      if (!min || sp.start < min) min = sp.start;
+      if (!max || sp.end > max) max = sp.end;
+    }
+    for (const m of state.milestones) {
+      const d = parseDate(m.date);
+      if (!d) continue;
+      if (!min || d < min) min = d;
+      if (!max || d > max) max = d;
+    }
+    const today = todayDate();
+    if (!min) { min = addDays(today, -7); max = addDays(today, 30); }
+    if (!max || max < min) max = addDays(min, 14);
+    // 前後に余白。開始は週頭(月曜)に丸める。
+    let origin = addDays(min, -3);
+    while (origin.getDay() !== 1) origin = addDays(origin, -1);
+    const end = addDays(max, 10);
+    const days = dayDiff(origin, end) + 1;
+    const width = Math.max(days * pxPerDay, 600);
+    scale = { origin, pxPerDay, width, end };
+    return scale;
+  }
+
+  function dateToX(d) { return dayDiff(scale.origin, d) * scale.pxPerDay; }
+  function xToDate(x) { return addDays(scale.origin, Math.round(x / scale.pxPerDay)); }
+
+  // --- ヘッダー目盛り ---
+  function renderScale() {
+    const g = uiState.granularity;
+    const ticks = [];
+    let d = new Date(scale.origin.getFullYear(), scale.origin.getMonth(), scale.origin.getDate());
+    const end = scale.end;
+    while (dayDiff(d, end) >= 0) {
+      let show = false, major = false, label = '', sub = '';
+      if (g === 'day') {
+        show = true;
+        major = d.getDate() === 1;
+        label = major ? `${d.getMonth() + 1}月` : '';
+        sub = String(d.getDate());
+      } else if (g === 'week') {
+        if (d.getDay() === 1) { show = true; major = d.getDate() <= 7; label = major ? `${d.getMonth() + 1}月` : ''; sub = `${d.getMonth() + 1}/${d.getDate()}`; }
+      } else if (g === 'month') {
+        if (d.getDate() === 1) { show = true; major = d.getMonth() === 0; label = major ? `${d.getFullYear()}` : ''; sub = `${d.getMonth() + 1}月`; }
+      } else if (g === 'quarter') {
+        if (d.getDate() === 1 && d.getMonth() % 3 === 0) { show = true; major = d.getMonth() === 0; label = major ? `${d.getFullYear()}` : ''; sub = `Q${Math.floor(d.getMonth() / 3) + 1}`; }
+      }
+      if (show) ticks.push(`<div class="scale-tick ${major ? 'major' : ''}" style="left:${dateToX(d)}px">${label}<span class="sub">${sub}</span></div>`);
+      d = addDays(d, 1);
+    }
+    return `<div class="gantt-scale" style="width:${scale.width}px">${ticks.join('')}</div>`;
+  }
+
+  // --- グリッド(縦線・週末/祝日シェード・今日線)---
+  function renderGridDecor(totalH) {
+    const g = uiState.granularity;
+    const parts = [];
+    let d = new Date(scale.origin.getFullYear(), scale.origin.getMonth(), scale.origin.getDate());
+    const end = scale.end;
+    const showWeekendShade = (g === 'day' || g === 'week');
+    while (dayDiff(d, end) >= 0) {
+      const x = dateToX(d);
+      // 縦グリッド線
+      let line = false, major = false;
+      if (g === 'day') { line = true; major = d.getDay() === 1; }
+      else if (g === 'week') { line = d.getDay() === 1; major = d.getDate() <= 7; }
+      else if (g === 'month') { line = d.getDate() === 1; major = d.getMonth() === 0; }
+      else if (g === 'quarter') { line = d.getDate() === 1 && d.getMonth() % 3 === 0; major = d.getMonth() === 0; }
+      if (line) parts.push(`<div class="grid-line ${major ? 'major' : ''}" style="left:${x}px"></div>`);
+      // 週末/祝日シェード(日・週表示のみ)
+      if (showWeekendShade) {
+        if (isWeekend(d)) parts.push(`<div class="grid-weekend" style="left:${x}px;width:${scale.pxPerDay}px"></div>`);
+        else if (Holidays.isHoliday(d)) parts.push(`<div class="grid-holiday" style="left:${x}px;width:${scale.pxPerDay}px"></div>`);
+      }
+      d = addDays(d, 1);
+    }
+    // 今日線
+    const today = todayDate();
+    if (dayDiff(scale.origin, today) >= 0 && dayDiff(today, scale.end) >= 0) {
+      const tx = dateToX(today) + scale.pxPerDay / 2;
+      parts.push(`<div class="today-flag" style="left:${tx}px">今日</div>`);
+      parts.push(`<div class="today-line" style="left:${tx}px;height:${totalH}px"></div>`);
+    }
+    return parts.join('');
+  }
+
+  // --- バー行 ---
+  function renderRows(rows) {
+    return rows.map(r => {
+      const n = r.node;
+      const sp = Schedules.effectiveSpan(n);
+      let bar = '';
+      if (sp) {
+        const left = dateToX(sp.start);
+        const width = Math.max((dayDiff(sp.start, sp.end) + 1) * scale.pxPerDay, 6);
+        if (r.hasChildren) {
+          bar = `<div class="bar summary" style="left:${left}px;width:${width}px"><span class="bar-label">${escapeHtml(n.name)}</span></div>`;
+        } else {
+          const st = Schedules.effectiveStatus(n);
+          const label = width > 40 ? `<span class="bar-label">${escapeHtml(n.name)}</span>` : '';
+          bar = `<div class="bar ${st}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}">
+                   <span class="grip left"></span>${label}<span class="grip right"></span>
+                 </div>`;
+        }
+      }
+      return `<div class="gantt-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-row="${n.id}">${bar}</div>`;
+    }).join('');
+  }
+
+  // --- マイルストーン ---
+  function renderMilestones(totalH) {
+    return state.milestones.map(m => {
+      const d = parseDate(m.date);
+      if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) > 0) return '';
+      const x = dateToX(d) + scale.pxPerDay / 2;
+      return `<div class="milestone" data-ms="${m.id}" style="left:${x}px;top:11px" title="${escapeHtml(m.name)} (${m.date})"></div>
+              <div class="milestone-label" style="left:${x}px;top:11px">${escapeHtml(m.name)}</div>`;
+    }).join('');
+  }
+
+  // --- 依存線 ---
+  function renderDeps(rows) {
+    const rowIndex = {};
+    rows.forEach((r, i) => { rowIndex[r.node.id] = i; });
+    const segs = [];
+    for (const dep of state.dependencies) {
+      const fi = rowIndex[dep.fromId], ti = rowIndex[dep.toId];
+      if (fi == null || ti == null) continue; // 折りたたみ等で非表示
+      const from = Schedules.byId(dep.fromId), to = Schedules.byId(dep.toId);
+      const fsp = Schedules.effectiveSpan(from), tsp = Schedules.effectiveSpan(to);
+      if (!fsp || !tsp) continue;
+      const x1 = dateToX(fsp.end) + scale.pxPerDay; // from バーの右端
+      const y1 = fi * ROW_H + ROW_H / 2;
+      const x2 = dateToX(tsp.start);
+      const y2 = ti * ROW_H + ROW_H / 2;
+      const midX = Math.max(x1 + 12, x2 - 12);
+      segs.push(`<path class="dep-path" d="M${x1},${y1} H${midX} V${y2} H${x2}"/>
+                 <path class="dep-arrow" d="M${x2},${y2} l-6,-4 v8 z"/>`);
+    }
+    return segs.join('');
+  }
+
+  function renderGantt() {
+    const header = document.getElementById('ganttHeader');
+    const body = document.getElementById('ganttBody');
+    if (!state.project) { header.innerHTML = ''; body.innerHTML = ''; return; }
+    computeDateScale();
+    const rows = Schedules.flattenForDisplay();
+    header.innerHTML = renderScale();
+
+    if (!rows.length) {
+      body.innerHTML = `<div class="gantt-empty">左でスケジュールを追加すると、ここにガントチャートが表示されます。</div>`;
+      return;
+    }
+    const totalH = rows.length * ROW_H;
+    body.innerHTML = `
+      <div class="gantt-grid" style="width:${scale.width}px;height:${totalH}px;position:relative">
+        ${renderGridDecor(totalH)}
+        <div class="gantt-rows">${renderRows(rows)}</div>
+        <svg id="depSvg" width="${scale.width}" height="${totalH}">${renderDeps(rows)}</svg>
+        ${renderMilestones(totalH)}
+      </div>`;
+  }
+
+  // --- ドラッグ(移動 / 期間変更)---
+  function beginDrag(e, barEl) {
+    const id = barEl.dataset.bar;
+    const node = Schedules.byId(id);
+    if (!node) return;
+    const sp = Schedules.effectiveSpan(node);
+    if (!sp) return;
+    const mode = e.target.classList.contains('grip')
+      ? (e.target.classList.contains('left') ? 'resize-l' : 'resize-r')
+      : 'move';
+    const startX = e.clientX;
+    const origStart = sp.start, origEnd = sp.end;
+    const durDays = dayDiff(origStart, origEnd);
+    e.preventDefault();
+    document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
+
+    function onMove(ev) {
+      const deltaDays = Math.round((ev.clientX - startX) / scale.pxPerDay);
+      let ns = origStart, ne = origEnd;
+      if (mode === 'move') { ns = addDays(origStart, deltaDays); ne = addDays(origEnd, deltaDays); }
+      else if (mode === 'resize-l') { ns = addDays(origStart, deltaDays); if (dayDiff(ns, ne) < 0) ns = ne; }
+      else if (mode === 'resize-r') { ne = addDays(origEnd, deltaDays); if (dayDiff(ns, ne) < 0) ne = ns; }
+      barEl.style.left = dateToX(ns) + 'px';
+      barEl.style.width = Math.max((dayDiff(ns, ne) + 1) * scale.pxPerDay, 6) + 'px';
+      barEl._pending = { start: fmtDate(ns), end: fmtDate(ne) };
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      const p = barEl._pending;
+      if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
+        Schedules.updateDates(id, p.start, p.end);
+      }
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  return { renderGantt, computeDateScale, dateToX, xToDate, beginDrag, ROW_H };
+})();
+
+
+// ===== app/assist.js =====
+// ==== app/assist.js ====
+// アシストモードの「次にやることガイド」(常設サイドパネルのチェックリスト)とテンプレート。
+
+const Assist = (() => {
+
+  const TEMPLATES = {
+    teamdev: {
+      title: 'チーム開発',
+      desc: '定義 / 設計 / 実装 / フォロー',
+      phases: [
+        { name: '定義', subs: [
+          { name: '機能要件定義', tasks: ['ヒアリング', '要求一覧作成'] },
+          { name: '非機能要件定義', tasks: ['性能・セキュリティ要件整理'] },
+        ] },
+        { name: '設計', subs: [
+          { name: '基本設計書作成', tasks: ['画面設計', 'データ設計'] },
+          { name: '詳細設計書作成', tasks: ['モジュール設計'] },
+        ] },
+        { name: '実装', subs: [
+          { name: '機能A実装', tasks: ['実装', 'コードレビュー'] },
+          { name: '機能B実装', tasks: ['実装'] },
+        ] },
+        { name: 'フォロー', subs: [
+          { name: '受入テスト', tasks: ['テスト実施', '不具合修正'] },
+          { name: 'リリース対応', tasks: ['リリース作業'] },
+        ] },
+      ],
+    },
+  };
+
+  function templateList() {
+    return Object.keys(TEMPLATES).map(k => ({ key: k, ...TEMPLATES[k] }));
+  }
+
+  // テンプレートから schedules を DB に直接書き込む(select() 前に呼ばれる)。
+  async function applyTemplate(projectId, key) {
+    const tpl = TEMPLATES[key];
+    if (!tpl) return;
+    let cursor = Holidays.nextWorkingDay(todayDate());
+    let po = 0;
+    for (const phase of tpl.phases) {
+      const pid = uid('s');
+      await DB.put('schedules', { id: pid, projectId, parentId: null, order: po++, name: phase.name, status: 'todo', assignee: '', startDate: '', endDate: '', note: '' });
+      let so = 0;
+      for (const sub of phase.subs) {
+        const sid = uid('s');
+        await DB.put('schedules', { id: sid, projectId, parentId: pid, order: so++, name: sub.name, status: 'todo', assignee: '', startDate: '', endDate: '', note: '' });
+        let to = 0;
+        for (const taskName of (sub.tasks || [])) {
+          const start = cursor;
+          const end = Holidays.endAfterWorkingDays(start, 3);
+          await DB.put('schedules', { id: uid('s'), projectId, parentId: sid, order: to++, name: taskName, status: 'todo', assignee: '', startDate: fmtDate(start), endDate: fmtDate(end), note: '' });
+          cursor = Holidays.nextWorkingDay(addDays(end, 1));
+        }
+      }
+    }
+  }
+
+  // --- ガイド ---
+  function steps() {
+    const lv0 = state.schedules.some(n => Schedules.levelOf(n) === 0);
+    const lv1 = state.schedules.some(n => Schedules.levelOf(n) === 1);
+    const lv2 = state.schedules.some(n => Schedules.levelOf(n) === 2);
+    const hasDates = state.schedules.some(n => !Schedules.hasChildren(n.id) && n.startDate && n.endDate);
+    const hasMs = state.milestones.length > 0;
+    return [
+      { done: lv0, title: '1. スケジュールを書く', body: 'まずは大きな流れ(フェーズ)を並べましょう。', eg: '例: 定義 / 設計 / 実装 / フォロー' },
+      { done: lv1, title: '2. サブスケジュールを追加', body: '各フェーズの中身を、成果物・工程の単位で分けます。', eg: '例:「定義」→ 機能要件定義 / 非機能要件定義' },
+      { done: lv2, title: '3. タスクを設定', body: '実際に手を動かす単位まで分解します。', eg: '例:「機能要件定義」→ ヒアリング / 要求一覧作成' },
+      { done: hasDates, title: '4. 期間を入れる', body: 'タスクに開始日と期間(稼働日)を入れると、バーが表示されます。', eg: '土日・祝日は自動で除外されます' },
+      { done: hasMs, title: '5. 節目を置く(任意)', body: '納期やレビュー会などの目印を立てましょう。', eg: 'ガント上部の「＋ 節目」から追加' },
+    ];
+  }
+
+  function renderAssist() {
+    const host = document.getElementById('assistGuide');
+    if (document.body.dataset.mode !== 'assist' || !state.project) { host.innerHTML = ''; return; }
+    const list = steps();
+    const activeIdx = list.findIndex(s => !s.done);
+    host.innerHTML = `
+      <div class="assist-head">
+        <h2>次にやること</h2>
+        <p>この順に進めれば、迷わずスケジュールが完成します。</p>
+      </div>
+      <ul class="guide-steps">
+        ${list.map((s, i) => `
+          <li class="guide-step ${s.done ? 'done' : ''} ${i === activeIdx ? 'active' : ''}">
+            <span class="guide-check">✓</span>
+            <div class="guide-body">
+              <h3>${escapeHtml(s.title)}</h3>
+              <p>${escapeHtml(s.body)}</p>
+              <span class="eg">${escapeHtml(s.eg)}</span>
+            </div>
+          </li>`).join('')}
+      </ul>
+      <div class="assist-tip">迷ったら、上の見本の言葉をそのまま真似して大丈夫。あとから何度でも直せます。</div>
+    `;
+  }
+
+  return { templateList, applyTemplate, renderAssist };
+})();
+
+
+// ===== app/exportimport.js =====
+// ==== app/exportimport.js ====
+// JSON エクスポート/インポート(バックアップ・復元用)と、印刷による PDF/画像出力(共有用)。
+
+const ExportImport = (() => {
+
+  function openMenu() {
+    UI.openModal(`
+      <div class="modal-head"><h2>出力 / バックアップ</h2></div>
+      <div class="modal-body">
+        <div class="field">
+          <label>共有用(閲覧のために書き出す)</label>
+          <button type="button" class="btn" data-act="print" style="width:100%">🖨 印刷 / PDF・画像として保存</button>
+          <span class="eg-hint">ブラウザの印刷ダイアログから「PDFに保存」を選べます。上司・チームへの共有に。</span>
+        </div>
+        <div class="field">
+          <label>バックアップ用(このプロジェクトのデータ全体)</label>
+          <button type="button" class="btn" data-act="json-out" style="width:100%;margin-bottom:8px">⬇ JSONファイルに書き出す</button>
+          <button type="button" class="btn" data-act="json-in" style="width:100%">⬆ JSONファイルから読み込む(新規プロジェクトとして)</button>
+          <span class="eg-hint">ブラウザのデータ消失に備えた保存・復元用です。</span>
+        </div>
+        <input type="file" accept="application/json,.json" data-file hidden>
+      </div>
+      <div class="modal-foot"><button type="button" class="btn" data-close>閉じる</button></div>
+    `, {
+      onOpen(modal) {
+        const fileIn = modal.querySelector('[data-file]');
+        modal.querySelector('[data-act="print"]').onclick = () => { window.print(); };
+        modal.querySelector('[data-act="json-out"]').onclick = () => exportJson();
+        modal.querySelector('[data-act="json-in"]').onclick = () => fileIn.click();
+        fileIn.onchange = () => { if (fileIn.files[0]) importJson(fileIn.files[0]); };
+      }
+    });
+  }
+
+  function exportJson() {
+    if (!state.project) return;
+    const data = {
+      app: 'GanttChart', version: 1, exportedAt: new Date().toISOString(),
+      project: { name: state.project.name, mode: state.project.mode },
+      schedules: state.schedules,
+      milestones: state.milestones,
+      dependencies: state.dependencies,
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${state.project.name || 'gantt'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('JSONを書き出しました');
+  }
+
+  async function importJson(file) {
+    let data;
+    try { data = JSON.parse(await file.text()); }
+    catch { toast('JSONの読み込みに失敗しました'); return; }
+    if (!data || data.app !== 'GanttChart' || !Array.isArray(data.schedules)) {
+      toast('GanttChart のファイルではありません'); return;
+    }
+    const now = Date.now();
+    const projectId = uid('p');
+    const project = { id: projectId, name: (data.project && data.project.name || '読み込んだプロジェクト') + '(復元)', mode: (data.project && data.project.mode) || 'assist', createdAt: now, updatedAt: now };
+    await DB.put('projects', project);
+
+    // id を振り直して参照を張り替える。
+    const idMap = {};
+    for (const n of data.schedules) idMap[n.id] = uid('s');
+    for (const n of data.schedules) {
+      await DB.put('schedules', { ...n, id: idMap[n.id], projectId, parentId: n.parentId ? (idMap[n.parentId] || null) : null });
+    }
+    for (const m of (data.milestones || [])) {
+      await DB.put('milestones', { ...m, id: uid('m'), projectId });
+    }
+    for (const d of (data.dependencies || [])) {
+      if (!idMap[d.fromId] || !idMap[d.toId]) continue;
+      await DB.put('dependencies', { id: uid('d'), projectId, fromId: idMap[d.fromId], toId: idMap[d.toId] });
+    }
+    document.getElementById('modalHost').classList.add('hidden');
+    document.getElementById('modalHost').innerHTML = '';
+    await Projects.loadAll();
+    await Projects.select(projectId);
+    toast('読み込みました');
+  }
+
+  return { openMenu, exportJson, importJson };
+})();
+
+
+// ===== app/history.js =====
+// ==== app/history.js ====
+// 元に戻す(undo)と変更履歴の表示。
+// undo は「選択中プロジェクトのドメイン配列のスナップショット」を積み、復元する簡潔な方式。
+
+const History = (() => {
+  const MAX = 40;
+
+  // 変更の直前に呼ぶ。現在のドメイン状態を deep copy して積む。
+  function snapshot() {
+    const snap = {
+      schedules: state.schedules.map(x => ({ ...x })),
+      milestones: state.milestones.map(x => ({ ...x })),
+      dependencies: state.dependencies.map(x => ({ ...x })),
+    };
+    const stack = uiState.undoStack.slice();
+    stack.push(snap);
+    if (stack.length > MAX) stack.shift();
+    Store.setUiState({ undoStack: stack }, ['header']);
+  }
+
+  function canUndo() { return uiState.undoStack.length > 0; }
+
+  async function undo() {
+    const stack = uiState.undoStack.slice();
+    const snap = stack.pop();
+    if (!snap) return;
+    Store.setUiState({ undoStack: stack }, []);
+
+    // DB を現在の内容から差し替える: 一旦プロジェクトの3ドメインを消して、スナップショットを書き戻す。
+    const pid = state.project.id;
+    for (const store of ['schedules', 'milestones', 'dependencies']) {
+      const cur = await DB.getAllByProject(store, pid);
+      await DB.bulkRemove(store, cur.map(r => r.id));
+    }
+    for (const n of snap.schedules) await DB.put('schedules', n);
+    for (const m of snap.milestones) await DB.put('milestones', m);
+    for (const d of snap.dependencies) await DB.put('dependencies', d);
+
+    state.schedules = snap.schedules;
+    state.milestones = snap.milestones;
+    state.dependencies = snap.dependencies;
+    await Projects.touch();
+    toast('元に戻しました');
+    Store.renderAll();
+  }
+
+  async function openPanel() {
+    // 履歴ログを最新の状態で読み直す(変更のたびに state を更新していないため)。
+    const fresh = await DB.getAllByProject('historyLog', state.project.id);
+    fresh.sort((a, b) => b.at - a.at);
+    Store.setState({ history: fresh }, []);
+    const items = fresh.length
+      ? fresh.map(h => `
+          <div class="hist-item">
+            <span class="when">${new Date(h.at).toLocaleString('ja-JP')}</span><br>
+            <span class="what">${escapeHtml(h.label || h.action)}</span>
+          </div>`).join('')
+      : '<p style="color:var(--text-faint)">まだ変更履歴はありません。</p>';
+    UI.openPanel(`
+      <div class="panel-head"><h2>変更履歴</h2><button class="icon-btn" data-close>✕</button></div>
+      <div class="panel-body">${items}</div>
+    `);
+  }
+
+  async function refresh() {
+    if (!state.project) return;
+    const fresh = await DB.getAllByProject('historyLog', state.project.id);
+    fresh.sort((a, b) => b.at - a.at);
+    Store.setState({ history: fresh }, []);
+  }
+
+  return { snapshot, canUndo, undo, openPanel, refresh };
+})();
+
+
+// ===== app/main.js =====
+// ==== app/main.js ====
+// 全体の配線。DOMContentLoaded で一度だけ初期化・イベント委譲を行う。
+
+async function init() {
+  await DB.open();
+
+  // レンダー関数をタグで購読(main で一度だけ配線)。
+  Store.subscribe(['header'], renderHeader);
+  Store.subscribe(['tree'], Schedules.renderTree);
+  Store.subscribe(['gantt'], Gantt.renderGantt);
+  Store.subscribe(['assist'], Assist.renderAssist);
+
+  wireHeader();
+  wireTree();
+  wireGantt();
+  wireScrollSync();
+  wireKeyboard();
+
+  await Projects.loadAll();
+  const id = await Projects.ensureOne();
+  await Projects.select(id);
+}
+
+// ---- ヘッダー描画 ----
+function renderHeader() {
+  const sel = document.getElementById('projectSelect');
+  sel.innerHTML = state.projects.map(p =>
+    `<option value="${p.id}" ${state.project && p.id === state.project.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+  ).join('');
+  document.getElementById('granularitySelect').value = uiState.granularity;
+  document.getElementById('undoBtn').disabled = !History.canUndo();
+}
+
+// ---- ヘッダー操作 ----
+function wireHeader() {
+  document.getElementById('projectSelect').onchange = (e) => Projects.select(e.target.value);
+  document.getElementById('newProjectBtn').onclick = openNewProjectDialog;
+  document.getElementById('modeToggle').onclick = (e) => {
+    const btn = e.target.closest('[data-mode]');
+    if (btn) Projects.setMode(btn.dataset.mode);
+  };
+  document.getElementById('granularitySelect').onchange = (e) => {
+    Store.setUiState({ granularity: e.target.value }, []);
+    Gantt.renderGantt();
+  };
+  document.getElementById('addScheduleBtn').onclick = () => Schedules.openEditor({ parentId: null, level: 0 });
+  document.getElementById('addMilestoneBtn').onclick = () => Milestones.openEditor(null);
+  document.getElementById('undoBtn').onclick = () => History.undo();
+  document.getElementById('historyBtn').onclick = () => History.openPanel();
+  document.getElementById('exportBtn').onclick = () => ExportImport.openMenu();
+}
+
+// ---- ツリー(イベント委譲)----
+function wireTree() {
+  const list = document.getElementById('treeList');
+  list.addEventListener('click', (e) => {
+    const toggle = e.target.closest('[data-toggle]');
+    if (toggle) {
+      const id = toggle.dataset.toggle;
+      const collapsed = { ...uiState.collapsed, [id]: !uiState.collapsed[id] };
+      Store.setUiState({ collapsed }, []);
+      Schedules.renderTree(); Gantt.renderGantt();
+      return;
+    }
+    const addChild = e.target.closest('[data-addchild]');
+    if (addChild) {
+      const parent = Schedules.byId(addChild.dataset.addchild);
+      Schedules.openEditor({ parentId: parent.id, level: Schedules.levelOf(parent) + 1 });
+      return;
+    }
+    const edit = e.target.closest('[data-edit]');
+    if (edit) { Schedules.openEditor({ id: edit.dataset.edit }); return; }
+    const del = e.target.closest('[data-del]');
+    if (del) { Schedules.del(del.dataset.del); return; }
+    const row = e.target.closest('[data-id]');
+    if (row) selectNode(row.dataset.id);
+  });
+}
+
+// ---- ガント(イベント委譲)----
+function wireGantt() {
+  const body = document.getElementById('ganttBody');
+  body.addEventListener('mousedown', (e) => {
+    const bar = e.target.closest('.bar[data-bar]');
+    if (bar) { selectNode(bar.dataset.bar); Gantt.beginDrag(e, bar); }
+  });
+  body.addEventListener('click', (e) => {
+    const ms = e.target.closest('[data-ms]');
+    if (ms) { Milestones.openEditor(ms.dataset.ms); return; }
+    const row = e.target.closest('[data-row]');
+    if (row && !e.target.closest('.bar')) selectNode(row.dataset.row);
+  });
+  body.addEventListener('dblclick', (e) => {
+    const bar = e.target.closest('.bar[data-bar]');
+    if (bar) Schedules.openEditor({ id: bar.dataset.bar });
+  });
+}
+
+function selectNode(id) {
+  Store.setUiState({ selectedId: id }, []);
+  Schedules.renderTree(); Gantt.renderGantt();
+}
+
+// ---- スクロール同期 ----
+function wireScrollSync() {
+  const body = document.getElementById('ganttBody');
+  const header = document.getElementById('ganttHeader');
+  const tree = document.getElementById('treeList');
+  let lock = false;
+  body.addEventListener('scroll', () => {
+    header.scrollLeft = body.scrollLeft;
+    if (lock) return; lock = true;
+    tree.scrollTop = body.scrollTop;
+    lock = false;
+  });
+  tree.addEventListener('scroll', () => {
+    if (lock) return; lock = true;
+    body.scrollTop = tree.scrollTop;
+    lock = false;
+  });
+}
+
+// ---- キーボード ----
+function wireKeyboard() {
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      // 入力中は無効
+      const t = e.target.tagName;
+      if (t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT') return;
+      e.preventDefault();
+      History.undo();
+    }
+  });
+}
+
+// ---- 新規プロジェクト ----
+function openNewProjectDialog() {
+  const templates = Assist.templateList();
+  UI.openModal(`
+    <div class="modal-head"><h2>新しいプロジェクト</h2></div>
+    <form>
+      <div class="modal-body">
+        <div class="field">
+          <label>プロジェクト名</label>
+          <input name="name" value="" placeholder="例: 新サービス開発" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>モード</label>
+          <div class="seg" data-mode="assist">
+            <button type="button" data-m="assist" class="on done">アシスト(初学者向け・緑)</button>
+            <button type="button" data-m="normal" class="">ノーマル(経験者向け・青)</button>
+          </div>
+        </div>
+        <div class="field">
+          <label>テンプレート</label>
+          <div class="template-grid">
+            ${templates.map(t => `
+              <button type="button" class="template-card" data-tpl="${t.key}">
+                <h4>${escapeHtml(t.title)}</h4><p>${escapeHtml(t.desc)}</p>
+              </button>`).join('')}
+            <button type="button" class="template-card" data-tpl="blank">
+              <h4>空から始める</h4><p>何もない状態から自由に</p>
+            </button>
+          </div>
+          <input type="hidden" name="template" value="${templates[0] ? templates[0].key : 'blank'}">
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" data-close>キャンセル</button>
+        <button type="submit" class="btn primary">作成</button>
+      </div>
+    </form>
+  `, {
+    onOpen(modal) {
+      const seg = modal.querySelector('.seg');
+      seg.querySelectorAll('button').forEach(b => b.onclick = () => {
+        seg.dataset.mode = b.dataset.m;
+        seg.querySelectorAll('button').forEach(x => x.className = '');
+        b.className = 'on done';
+      });
+      const tplInput = modal.querySelector('[name=template]');
+      const cards = modal.querySelectorAll('.template-card');
+      function markTpl(key) { cards.forEach(c => c.style.borderColor = c.dataset.tpl === key ? 'var(--accent)' : ''); }
+      markTpl(tplInput.value);
+      cards.forEach(c => c.onclick = () => { tplInput.value = c.dataset.tpl; markTpl(c.dataset.tpl); });
+    },
+    onSubmit(form, modal) {
+      const name = form.name.value.trim() || '新しいプロジェクト';
+      const mode = modal.querySelector('.seg').dataset.mode;
+      const tpl = form.template.value;
+      Projects.create(name, mode, tpl);
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+</script>
+</body>
+</html>
