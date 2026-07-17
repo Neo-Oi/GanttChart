@@ -26,10 +26,11 @@
   --assist-w: 300px;
   --header-h: 56px;
 
-  /* タスクのステータス色: モードに関わらずグレーの濃淡で統一(未着手=濃 → 完了=淡)。 */
-  --tone-todo: #475569;
-  --tone-doing: #94a3b8;
-  --tone-done: #e2e8f0;
+  /* タスクのステータス色: 進捗が一目で分かるよう、はっきり色を分ける
+     (未着手=グレー / 進行中=オレンジ / 完了=緑)。 */
+  --tone-todo: #94a3b8;
+  --tone-doing: #f59e0b;
+  --tone-done: #22c55e;
 
   /* アクセント(モードで切替。既定=アシスト/緑) */
   --accent: #0f9d6b;
@@ -273,6 +274,8 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .name.lv0 { font-weight: 700; color: var(--accent-strong); }
 .tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
+/* 名前の横の実稼働日数 */
+.tree-row .name-days { color: var(--text-faint); font-weight: 400; font-size: 11px; margin-left: 3px; }
 .tree-row .meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 /* レベルバッジ: スケジュール(親=テーマ色)/ サブ(グレー)/ タスク(淡グレー枠)。一目で階層が分かる。 */
 .lvl-badge {
@@ -397,7 +400,6 @@ body[data-mode="normal"] #assistPane { display: none; }
   content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
   width: 3px; height: 55%; border-left: 2px solid rgba(255,255,255,.85); border-right: 2px solid rgba(255,255,255,.85);
 }
-.bar.lv2.done[data-bar]:hover .grip::after { border-color: rgba(30,41,59,.6); }
 /* ドラッグ中の実バー: 半透明のままマウスに連続追従させ、「動いている」ことを分かりやすくする。 */
 .bar.dragging { box-shadow: 0 8px 24px rgba(15,23,42,.35) !important; outline: 2px dashed #fff; outline-offset: -1px; z-index: 9; opacity: .4; }
 /* 予測ゴースト: ドロップした場合に確定する(グリッドにスナップ済みの)位置・幅を示す。 */
@@ -426,8 +428,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 .bar.lv2 { top: 13px; height: calc(var(--row-h) - 26px); }
 .bar.lv2.todo { background: var(--tone-todo); }
 .bar.lv2.doing { background: var(--tone-doing); }
-.bar.lv2.done { background: var(--tone-done); color: #1e293b; }
-.bar.lv2.done .bar-label { text-shadow: none; }
+.bar.lv2.done { background: var(--tone-done); }
 
 /* サマリー(子を持つスケジュール/サブスケジュール): 上記の lv0/lv1 の色を継承しつつ、非対話・端に三角を付ける。 */
 .bar.summary {
@@ -677,14 +678,6 @@ body[data-mode="normal"] #notesFloatClose { display: none; }
 .notes-preview-empty { color: var(--text-faint); font-size: 12px; margin: 0; }
 .notes-foot { display: flex; gap: 6px; flex-wrap: wrap; }
 .notes-import-row { margin-top: 8px; }
-
-/* ===== スケジュール/サブスケジュール/タスク編集モーダル内の「メモを見る」参考ブロック ===== */
-.notes-ref { margin-bottom: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
-.notes-ref summary { cursor: pointer; padding: 9px 12px; font-size: 12px; font-weight: 700; color: var(--accent-strong); list-style: none; }
-.notes-ref summary::-webkit-details-marker { display: none; }
-.notes-ref summary::before { content: '▸ '; }
-.notes-ref[open] summary::before { content: '▾ '; }
-.notes-ref-preview { max-height: 160px; overflow-y: auto; padding: 0 12px 12px; font-size: 12px; }
 
 /* ステータスセグメント(モーダル内) */
 .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
@@ -1500,12 +1493,18 @@ const NotesPanel = (() => {
     });
 
     const tabs = main.querySelectorAll('.notes-tab');
-    tabs.forEach(t => t.onclick = () => {
-      tabs.forEach(x => x.classList.toggle('on', x === t));
-      const isEdit = t.dataset.nt === 'edit';
+    const foot = main.querySelector('.notes-foot');
+    function setTab(which) {
+      const isEdit = which === 'edit';
+      tabs.forEach(x => x.classList.toggle('on', x.dataset.nt === which));
       ta.hidden = !isEdit; preview.hidden = isEdit;
+      // プレビュー時は編集用フッター(保存・読込・書出・削除)を隠す(.notes-foot は display:flex なので class で制御)。
+      foot.classList.toggle('hidden', !isEdit);
       if (!isEdit) updatePreview();
-    });
+    }
+    tabs.forEach(t => t.onclick = () => setTab(t.dataset.nt));
+    // 既定: 中身のあるメモはプレビューから、空(新規)は編集から始める。
+    setTab(cur.body && cur.body.trim() ? 'preview' : 'edit');
 
     const fileInput = main.querySelector('#notesFileInput');
     main.querySelector('#notesImportBtn').onclick = () => fileInput.click();
@@ -1677,6 +1676,9 @@ const Schedules = (() => {
       const dotClass = r.level === 2 ? effectiveStatus(n) : `lv${r.level}`;
       const sp = effectiveSpan(n);
       const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
+      // 名前の横に実稼働日数「(N日)」を表示(土日・祝日を除いた日数)。
+      const wdays = sp ? Holidays.countWorkingDays(sp.start, sp.end) : 0;
+      const daysSuffix = wdays ? `<span class="name-days">(${wdays}日)</span>` : '';
       // 状態表示: 親(子あり)は進捗%、末端タスクは状態ラベル(未着手/進行中/完了)。
       const effSt = effectiveStatus(n);
       const statusText = r.hasChildren ? `${progressPercent(n)}%` : statusLabel(effSt);
@@ -1701,7 +1703,7 @@ const Schedules = (() => {
           <span class="status-dot ${dotClass}"></span>
           <span class="num">${nums[n.id] || ''}</span>
           <span class="lvl-badge lv${r.level}" title="${LEVEL_NAME[r.level]}">${badgeText}</span>
-          <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
+          <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}${daysSuffix}</span>
           ${persistent}
           <span class="tree-spacer"></span>
           <span class="meta">${meta}</span>
@@ -1734,15 +1736,6 @@ const Schedules = (() => {
     const assist = document.body.dataset.mode === 'assist';
     const eg = examples(level);
     const n = editing || {};
-
-    // プロジェクトメモ(複数)を参考として表示する。中身があるものだけ、名前付きで並べる。
-    const noteList = (state.notes || []).filter(nt => nt.body && nt.body.trim());
-    const notesRef = noteList.length ? `
-      <details class="notes-ref" open>
-        <summary>プロジェクトメモを見る(参考)</summary>
-        <div class="notes-ref-preview md-preview">${noteList.map(nt =>
-          `<h5>${escapeHtml(nt.name || '(無題)')}</h5>${renderMarkdownSafe(nt.body)}`).join('')}</div>
-      </details>` : '';
 
     let start = n.startDate || '';
     let end = n.endDate || '';
@@ -1814,11 +1807,10 @@ const Schedules = (() => {
       }
     }
 
-    UI.openModal(`
+    const h = UI.openModal(`
       <div class="modal-head"><h2>${editing ? LEVEL_NAME[level] + 'を編集' : LEVEL_NAME[level] + 'を追加'}</h2></div>
       <form>
         <div class="modal-body">
-          ${notesRef}
           <div class="field">
             <label>${LEVEL_NAME[level]}名</label>
             <input name="name" value="${escapeHtml(n.name || '')}" placeholder="${assist ? '' : LEVEL_NAME[level] + '名'}" autocomplete="off">
@@ -1840,12 +1832,16 @@ const Schedules = (() => {
           </div>
         </div>
         <div class="modal-foot">
+          ${editing ? '<button type="button" class="btn danger" data-delnode style="margin-right:auto">削除</button>' : ''}
           <button type="button" class="btn" data-close>キャンセル</button>
           <button type="submit" class="btn primary">${editing ? '保存' : '追加'}</button>
         </div>
       </form>
     `, {
       onOpen(modal) {
+        // 削除(左端)。押し間違い防止に confirm を挟む(del 内で確認)。
+        const delBtn = modal.querySelector('[data-delnode]');
+        if (delBtn) delBtn.onclick = () => { h.close(); del(editing.id); };
         // ステータスセグメント
         const seg = modal.querySelector('.seg');
         if (seg) seg.querySelectorAll('button').forEach(b => b.onclick = () => {

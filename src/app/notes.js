@@ -120,12 +120,18 @@ const NotesPanel = (() => {
     });
 
     const tabs = main.querySelectorAll('.notes-tab');
-    tabs.forEach(t => t.onclick = () => {
-      tabs.forEach(x => x.classList.toggle('on', x === t));
-      const isEdit = t.dataset.nt === 'edit';
+    const foot = main.querySelector('.notes-foot');
+    function setTab(which) {
+      const isEdit = which === 'edit';
+      tabs.forEach(x => x.classList.toggle('on', x.dataset.nt === which));
       ta.hidden = !isEdit; preview.hidden = isEdit;
+      // プレビュー時は編集用フッター(保存・読込・書出・削除)を隠す(.notes-foot は display:flex なので class で制御)。
+      foot.classList.toggle('hidden', !isEdit);
       if (!isEdit) updatePreview();
-    });
+    }
+    tabs.forEach(t => t.onclick = () => setTab(t.dataset.nt));
+    // 既定: 中身のあるメモはプレビューから、空(新規)は編集から始める。
+    setTab(cur.body && cur.body.trim() ? 'preview' : 'edit');
 
     const fileInput = main.querySelector('#notesFileInput');
     main.querySelector('#notesImportBtn').onclick = () => fileInput.click();
