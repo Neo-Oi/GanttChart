@@ -221,6 +221,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-list { flex: 1 1 auto; overflow-y: auto; }
 
 .tree-row {
+  position: relative;
   display: flex;
   align-items: center;
   height: var(--row-h);
@@ -244,7 +245,8 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .tree-row .twist.leaf { visibility: hidden; }
 .tree-row .num { color: var(--text-faint); font-size: 11px; min-width: 34px; font-variant-numeric: tabular-nums; }
-.tree-row .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.tree-row .name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.tree-spacer { flex: 1 1 auto; min-width: 6px; }
 .tree-row .name.lv0 { font-weight: 700; color: var(--accent-strong); }
 .tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
@@ -264,7 +266,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .row-status.todo { color: #94a3b8; }
 .tree-row .row-status.doing { color: var(--accent-strong); }
 .tree-row .row-status.done { color: #16a34a; }
-.tree-row .row-actions { display: none; gap: 2px; }
+/* ミニボタンはホバー時に右端へオーバーレイ表示(被せる)。行のレイアウトに影響しないので、
+   ホバーしても状態・日付の列がずれない。 */
+.tree-row .row-actions {
+  display: none; gap: 2px;
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+  padding: 2px 4px; box-shadow: var(--shadow-sm); z-index: 2;
+}
 .tree-row:hover .row-actions { display: inline-flex; }
 .icon-btn {
   width: 22px; height: 22px; border: 0; border-radius: 5px;
@@ -462,13 +471,18 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .modal-host.hidden, .panel-host.hidden { display: none; }
 .modal {
-  width: min(520px, 92vw); max-height: 88vh; overflow-y: auto;
+  width: min(520px, 92vw); max-height: 92vh; overflow-y: auto;
   background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
 }
-.modal-head { padding: 18px 22px 6px; }
+.modal-head { padding: 16px 22px 4px; }
 .modal-head h2 { margin: 0; font-size: 16px; }
-.modal-body { padding: 10px 22px 4px; }
-.modal-foot { padding: 14px 22px 20px; display: flex; justify-content: flex-end; gap: 10px; }
+.modal-body { padding: 8px 22px 4px; }
+/* 保存ボタンは常に見えるよう、フッターをモーダル下端に貼り付ける(長い入力でもスクロール不要)。 */
+.modal-foot {
+  padding: 12px 22px; display: flex; justify-content: flex-end; gap: 10px;
+  position: sticky; bottom: 0; background: var(--surface);
+  border-top: 1px solid var(--border); border-radius: 0 0 14px 14px;
+}
 
 .panel-host { justify-content: flex-end; }
 .side-panel {
@@ -508,14 +522,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 .seg-mini button.done.on { background: var(--tone-done); }
 .seg-mini button:not(.on):hover { opacity: .85; }
 
-.field { margin-bottom: 14px; }
-.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 3px; }
 .field input, .field select, .field textarea {
-  width: 100%; height: 38px; padding: 0 11px;
+  width: 100%; height: 34px; padding: 0 11px;
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   font-family: inherit; font-size: 14px; color: var(--text); background: var(--surface);
 }
-.field textarea { height: auto; padding: 9px 11px; resize: vertical; min-height: 62px; }
+.field textarea { height: auto; padding: 8px 11px; resize: vertical; min-height: 52px; }
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
 }
@@ -544,9 +558,22 @@ body[data-mode="normal"] #assistPane { display: none; }
 .template-card h4 { margin: 0 0 5px; font-size: 13px; }
 .template-card p { margin: 0; font-size: 11px; color: var(--text-muted); }
 
-.hist-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.hist-item { padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .hist-item .when { color: var(--text-faint); font-size: 11px; }
 .hist-item .what { color: var(--text); }
+.hist-line { display: flex; align-items: flex-start; gap: 8px; }
+.hist-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; padding-left: 44px; }
+/* アクション色分け: 追加=テーマ色 / 変更=オレンジ / 削除=赤 */
+.hist-tag { flex: 0 0 auto; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; color: #fff; }
+.hist-tag.hist-add { background: var(--accent); }
+.hist-tag.hist-edit { background: #f59e0b; }
+.hist-tag.hist-delete { background: #dc2626; }
+/* 左端に色帯 */
+.hist-item.hist-add { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; }
+.hist-item.hist-edit { box-shadow: inset 3px 0 0 #f59e0b; padding-left: 8px; }
+.hist-item.hist-delete { box-shadow: inset 3px 0 0 #dc2626; padding-left: 8px; }
+.hist-legend { display: flex; gap: 6px; margin: 0 0 12px; }
+.btn.mini-restore { height: 26px; padding: 0 10px; font-size: 11px; }
 
 /* ===== Markdown プレビュー(共通の見た目) ===== */
 .md-preview { font-size: 13px; line-height: 1.65; color: var(--text); }
@@ -985,6 +1012,8 @@ const DB = (() => {
     });
   }
 
+  const HISTORY_MAX = 80; // 履歴(スナップショット付き)の保持件数の上限
+
   function _log(projectId, meta) {
     const entry = {
       id: uid('h'),
@@ -992,8 +1021,25 @@ const DB = (() => {
       at: Date.now(),
       action: meta.action || 'change',
       label: meta.label || '',
+      // 変更「後」の状態スナップショット。この時点への復元(ロールバック)に使う。
+      // 呼び出し元は state.* を更新してから DB.put/remove するので、ここでは反映済みの状態が取れる。
+      snap: {
+        schedules: (state.schedules || []).map(x => ({ ...x })),
+        milestones: (state.milestones || []).map(x => ({ ...x })),
+        dependencies: (state.dependencies || []).map(x => ({ ...x })),
+      },
     };
-    return reqP(tx('historyLog', 'readwrite').put(entry));
+    reqP(tx('historyLog', 'readwrite').put(entry));
+    // 上限を超えた古い履歴を間引く(スナップショット付きで肥大化するため)。
+    return _pruneHistory(projectId);
+  }
+
+  async function _pruneHistory(projectId) {
+    const all = await getAllByProject('historyLog', projectId);
+    if (all.length <= HISTORY_MAX) return;
+    all.sort((a, b) => a.at - b.at); // 古い順
+    const excess = all.slice(0, all.length - HISTORY_MAX);
+    await bulkRemove('historyLog', excess.map(e => e.id));
   }
 
   // meta ストア(選択中プロジェクトIDなど)
@@ -1477,9 +1523,10 @@ const Schedules = (() => {
           <span class="num">${nums[n.id] || ''}</span>
           <span class="lvl-badge lv${r.level}" title="${LEVEL_NAME[r.level]}">${badgeText}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
+          ${persistent}
+          <span class="tree-spacer"></span>
           <span class="meta">${meta}</span>
           <span class="row-status ${effSt}">${statusText}</span>
-          ${persistent}
           <span class="row-actions">
             ${hoverAdd}
             <button class="icon-btn" data-edit="${n.id}" title="編集">✎</button>
@@ -1663,11 +1710,25 @@ const Schedules = (() => {
     afterChange();
   }
 
+  // 変更前後を比較して「何を何に変えたか」の説明を作る。
+  function describeChanges(oldNode, data) {
+    const parts = [];
+    if (data.name !== undefined && data.name !== oldNode.name) parts.push(`名称「${oldNode.name || '(空)'}」→「${data.name || '(空)'}」`);
+    const os = oldNode.startDate || '', ns = data.startDate === undefined ? os : (data.startDate || '');
+    const oe = oldNode.endDate || '', ne = data.endDate === undefined ? oe : (data.endDate || '');
+    if (os !== ns || oe !== ne) parts.push(`期間 ${os || '未設定'}〜${oe || '未設定'} → ${ns || '未設定'}〜${ne || '未設定'}`);
+    if (data.assignee !== undefined && data.assignee !== (oldNode.assignee || '') && !(data.assignee === '' && !oldNode.assignee)) parts.push(`担当 ${oldNode.assignee || '(なし)'} → ${data.assignee || '(なし)'}`);
+    if (data.status !== undefined && data.status !== (oldNode.status || 'todo')) parts.push(`状態 ${statusLabel(oldNode.status || 'todo')} → ${statusLabel(data.status)}`);
+    return parts;
+  }
+
   async function saveNode(id, data, predIds) {
     History.snapshot();
     const node = byId(id);
+    const changes = describeChanges(node, data);
     Object.assign(node, data);
-    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」を編集` });
+    const label = changes.length ? `「${node.name}」: ${changes.join(' / ')}` : `「${node.name}」を編集`;
+    await DB.put('schedules', node, { action: 'edit', label });
     await Projects.touch();
     if (predIds) await Dependencies.setPredecessors(id, predIds);
     await Dependencies.rescheduleFrom(id);
@@ -1678,8 +1739,9 @@ const Schedules = (() => {
   async function updateDates(id, startDate, endDate) {
     History.snapshot();
     const node = byId(id);
+    const os = node.startDate || '未設定', oe = node.endDate || '未設定';
     node.startDate = startDate; node.endDate = endDate;
-    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」の期間を変更` });
+    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」の期間 ${os}〜${oe} → ${startDate}〜${endDate}` });
     await Projects.touch();
     await Dependencies.rescheduleFrom(id);
     afterChange();
@@ -1688,8 +1750,9 @@ const Schedules = (() => {
   async function setStatus(id, status) {
     History.snapshot();
     const node = byId(id);
+    const old = node.status || 'todo';
     node.status = status;
-    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」を${statusLabel(status)}に` });
+    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」の状態 ${statusLabel(old)} → ${statusLabel(status)}` });
     await Projects.touch();
     afterChange();
   }
@@ -1710,7 +1773,7 @@ const Schedules = (() => {
       if (node.startDate) node.startDate = fmtDate(addDays(parseDate(node.startDate), days));
       if (node.endDate) node.endDate = fmtDate(addDays(parseDate(node.endDate), days));
       // 履歴には代表として1件だけ記録する。
-      await DB.put('schedules', node, first ? { action: 'edit', label: `「${root.name}」を配下ごと移動` } : undefined);
+      await DB.put('schedules', node, first ? { action: 'edit', label: `「${root.name}」を配下ごと ${days > 0 ? '+' + days : days}日 移動` } : undefined);
       first = false;
     }
     await Projects.touch();
@@ -2601,22 +2664,67 @@ const History = (() => {
     Store.renderAll();
   }
 
+  const ACTION_LABEL = { add: '追加', edit: '変更', delete: '削除' };
+
   async function openPanel() {
     // 履歴ログを最新の状態で読み直す(変更のたびに state を更新していないため)。
     const fresh = await DB.getAllByProject('historyLog', state.project.id);
     fresh.sort((a, b) => b.at - a.at);
     Store.setState({ history: fresh }, []);
     const items = fresh.length
-      ? fresh.map(h => `
-          <div class="hist-item">
-            <span class="when">${new Date(h.at).toLocaleString('ja-JP')}</span><br>
-            <span class="what">${escapeHtml(h.label || h.action)}</span>
-          </div>`).join('')
+      ? fresh.map(h => {
+          const act = h.action || 'edit';
+          const tag = ACTION_LABEL[act] || '変更';
+          return `
+          <div class="hist-item hist-${act}">
+            <div class="hist-line">
+              <span class="hist-tag hist-${act}">${tag}</span>
+              <span class="what">${escapeHtml(h.label || tag)}</span>
+            </div>
+            <div class="hist-foot">
+              <span class="when">${new Date(h.at).toLocaleString('ja-JP')}</span>
+              ${h.snap ? `<button class="btn mini-restore" data-restore="${h.id}">この時点に戻す</button>` : ''}
+            </div>
+          </div>`;
+        }).join('')
       : '<p style="color:var(--text-faint)">まだ変更履歴はありません。</p>';
-    UI.openPanel(`
+    const h = UI.openPanel(`
       <div class="panel-head"><h2>変更履歴</h2><button class="icon-btn" data-close>✕</button></div>
-      <div class="panel-body">${items}</div>
-    `);
+      <div class="panel-body">
+        <p class="hist-legend"><span class="hist-tag hist-add">追加</span><span class="hist-tag hist-edit">変更</span><span class="hist-tag hist-delete">削除</span></p>
+        ${items}
+      </div>
+    `, {
+      onOpen(panel) {
+        panel.querySelectorAll('[data-restore]').forEach(b => {
+          b.onclick = () => restoreTo(b.dataset.restore, h);
+        });
+      }
+    });
+  }
+
+  // 指定した履歴時点のスナップショットに戻す(ロールバック)。この操作自体も undo 可能。
+  async function restoreTo(entryId, panelHandle) {
+    const entry = state.history.find(e => e.id === entryId);
+    if (!entry || !entry.snap) return;
+    const ok = await UI.confirm('この時点の状態に戻します。よろしいですか?(この操作も「元に戻す」で取り消せます)', { okLabel: '戻す' });
+    if (!ok) return;
+    snapshot(); // 復元前の状態を undo スタックへ
+    const pid = state.project.id;
+    for (const store of ['schedules', 'milestones', 'dependencies']) {
+      const cur = await DB.getAllByProject(store, pid);
+      await DB.bulkRemove(store, cur.map(r => r.id));
+    }
+    for (const n of entry.snap.schedules) await DB.put('schedules', { ...n, projectId: pid });
+    for (const m of entry.snap.milestones) await DB.put('milestones', { ...m, projectId: pid });
+    for (const d of entry.snap.dependencies) await DB.put('dependencies', { ...d, projectId: pid });
+    state.schedules = entry.snap.schedules.map(x => ({ ...x }));
+    state.milestones = entry.snap.milestones.map(x => ({ ...x }));
+    state.dependencies = entry.snap.dependencies.map(x => ({ ...x }));
+    await Projects.touch();
+    if (panelHandle) panelHandle.close();
+    toast('この時点に戻しました');
+    Store.renderAll();
   }
 
   async function refresh() {
@@ -2626,7 +2734,7 @@ const History = (() => {
     Store.setState({ history: fresh }, []);
   }
 
-  return { snapshot, canUndo, undo, openPanel, refresh };
+  return { snapshot, canUndo, undo, openPanel, restoreTo, refresh };
 })();
 
 

@@ -214,6 +214,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-list { flex: 1 1 auto; overflow-y: auto; }
 
 .tree-row {
+  position: relative;
   display: flex;
   align-items: center;
   height: var(--row-h);
@@ -237,7 +238,8 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .tree-row .twist.leaf { visibility: hidden; }
 .tree-row .num { color: var(--text-faint); font-size: 11px; min-width: 34px; font-variant-numeric: tabular-nums; }
-.tree-row .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.tree-row .name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.tree-spacer { flex: 1 1 auto; min-width: 6px; }
 .tree-row .name.lv0 { font-weight: 700; color: var(--accent-strong); }
 .tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
@@ -257,7 +259,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .row-status.todo { color: #94a3b8; }
 .tree-row .row-status.doing { color: var(--accent-strong); }
 .tree-row .row-status.done { color: #16a34a; }
-.tree-row .row-actions { display: none; gap: 2px; }
+/* ミニボタンはホバー時に右端へオーバーレイ表示(被せる)。行のレイアウトに影響しないので、
+   ホバーしても状態・日付の列がずれない。 */
+.tree-row .row-actions {
+  display: none; gap: 2px;
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 7px;
+  padding: 2px 4px; box-shadow: var(--shadow-sm); z-index: 2;
+}
 .tree-row:hover .row-actions { display: inline-flex; }
 .icon-btn {
   width: 22px; height: 22px; border: 0; border-radius: 5px;
@@ -455,13 +464,18 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .modal-host.hidden, .panel-host.hidden { display: none; }
 .modal {
-  width: min(520px, 92vw); max-height: 88vh; overflow-y: auto;
+  width: min(520px, 92vw); max-height: 92vh; overflow-y: auto;
   background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
 }
-.modal-head { padding: 18px 22px 6px; }
+.modal-head { padding: 16px 22px 4px; }
 .modal-head h2 { margin: 0; font-size: 16px; }
-.modal-body { padding: 10px 22px 4px; }
-.modal-foot { padding: 14px 22px 20px; display: flex; justify-content: flex-end; gap: 10px; }
+.modal-body { padding: 8px 22px 4px; }
+/* 保存ボタンは常に見えるよう、フッターをモーダル下端に貼り付ける(長い入力でもスクロール不要)。 */
+.modal-foot {
+  padding: 12px 22px; display: flex; justify-content: flex-end; gap: 10px;
+  position: sticky; bottom: 0; background: var(--surface);
+  border-top: 1px solid var(--border); border-radius: 0 0 14px 14px;
+}
 
 .panel-host { justify-content: flex-end; }
 .side-panel {
@@ -501,14 +515,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 .seg-mini button.done.on { background: var(--tone-done); }
 .seg-mini button:not(.on):hover { opacity: .85; }
 
-.field { margin-bottom: 14px; }
-.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
+.field { margin-bottom: 10px; }
+.field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 3px; }
 .field input, .field select, .field textarea {
-  width: 100%; height: 38px; padding: 0 11px;
+  width: 100%; height: 34px; padding: 0 11px;
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
   font-family: inherit; font-size: 14px; color: var(--text); background: var(--surface);
 }
-.field textarea { height: auto; padding: 9px 11px; resize: vertical; min-height: 62px; }
+.field textarea { height: auto; padding: 8px 11px; resize: vertical; min-height: 52px; }
 .field input:focus, .field select:focus, .field textarea:focus {
   outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft);
 }
@@ -537,9 +551,22 @@ body[data-mode="normal"] #assistPane { display: none; }
 .template-card h4 { margin: 0 0 5px; font-size: 13px; }
 .template-card p { margin: 0; font-size: 11px; color: var(--text-muted); }
 
-.hist-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.hist-item { padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
 .hist-item .when { color: var(--text-faint); font-size: 11px; }
 .hist-item .what { color: var(--text); }
+.hist-line { display: flex; align-items: flex-start; gap: 8px; }
+.hist-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 4px; padding-left: 44px; }
+/* アクション色分け: 追加=テーマ色 / 変更=オレンジ / 削除=赤 */
+.hist-tag { flex: 0 0 auto; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px; color: #fff; }
+.hist-tag.hist-add { background: var(--accent); }
+.hist-tag.hist-edit { background: #f59e0b; }
+.hist-tag.hist-delete { background: #dc2626; }
+/* 左端に色帯 */
+.hist-item.hist-add { box-shadow: inset 3px 0 0 var(--accent); padding-left: 8px; }
+.hist-item.hist-edit { box-shadow: inset 3px 0 0 #f59e0b; padding-left: 8px; }
+.hist-item.hist-delete { box-shadow: inset 3px 0 0 #dc2626; padding-left: 8px; }
+.hist-legend { display: flex; gap: 6px; margin: 0 0 12px; }
+.btn.mini-restore { height: 26px; padding: 0 10px; font-size: 11px; }
 
 /* ===== Markdown プレビュー(共通の見た目) ===== */
 .md-preview { font-size: 13px; line-height: 1.65; color: var(--text); }

@@ -44,22 +44,67 @@ const History = (() => {
     Store.renderAll();
   }
 
+  const ACTION_LABEL = { add: '追加', edit: '変更', delete: '削除' };
+
   async function openPanel() {
     // 履歴ログを最新の状態で読み直す(変更のたびに state を更新していないため)。
     const fresh = await DB.getAllByProject('historyLog', state.project.id);
     fresh.sort((a, b) => b.at - a.at);
     Store.setState({ history: fresh }, []);
     const items = fresh.length
-      ? fresh.map(h => `
-          <div class="hist-item">
-            <span class="when">${new Date(h.at).toLocaleString('ja-JP')}</span><br>
-            <span class="what">${escapeHtml(h.label || h.action)}</span>
-          </div>`).join('')
+      ? fresh.map(h => {
+          const act = h.action || 'edit';
+          const tag = ACTION_LABEL[act] || '変更';
+          return `
+          <div class="hist-item hist-${act}">
+            <div class="hist-line">
+              <span class="hist-tag hist-${act}">${tag}</span>
+              <span class="what">${escapeHtml(h.label || tag)}</span>
+            </div>
+            <div class="hist-foot">
+              <span class="when">${new Date(h.at).toLocaleString('ja-JP')}</span>
+              ${h.snap ? `<button class="btn mini-restore" data-restore="${h.id}">この時点に戻す</button>` : ''}
+            </div>
+          </div>`;
+        }).join('')
       : '<p style="color:var(--text-faint)">まだ変更履歴はありません。</p>';
-    UI.openPanel(`
+    const h = UI.openPanel(`
       <div class="panel-head"><h2>変更履歴</h2><button class="icon-btn" data-close>✕</button></div>
-      <div class="panel-body">${items}</div>
-    `);
+      <div class="panel-body">
+        <p class="hist-legend"><span class="hist-tag hist-add">追加</span><span class="hist-tag hist-edit">変更</span><span class="hist-tag hist-delete">削除</span></p>
+        ${items}
+      </div>
+    `, {
+      onOpen(panel) {
+        panel.querySelectorAll('[data-restore]').forEach(b => {
+          b.onclick = () => restoreTo(b.dataset.restore, h);
+        });
+      }
+    });
+  }
+
+  // 指定した履歴時点のスナップショットに戻す(ロールバック)。この操作自体も undo 可能。
+  async function restoreTo(entryId, panelHandle) {
+    const entry = state.history.find(e => e.id === entryId);
+    if (!entry || !entry.snap) return;
+    const ok = await UI.confirm('この時点の状態に戻します。よろしいですか?(この操作も「元に戻す」で取り消せます)', { okLabel: '戻す' });
+    if (!ok) return;
+    snapshot(); // 復元前の状態を undo スタックへ
+    const pid = state.project.id;
+    for (const store of ['schedules', 'milestones', 'dependencies']) {
+      const cur = await DB.getAllByProject(store, pid);
+      await DB.bulkRemove(store, cur.map(r => r.id));
+    }
+    for (const n of entry.snap.schedules) await DB.put('schedules', { ...n, projectId: pid });
+    for (const m of entry.snap.milestones) await DB.put('milestones', { ...m, projectId: pid });
+    for (const d of entry.snap.dependencies) await DB.put('dependencies', { ...d, projectId: pid });
+    state.schedules = entry.snap.schedules.map(x => ({ ...x }));
+    state.milestones = entry.snap.milestones.map(x => ({ ...x }));
+    state.dependencies = entry.snap.dependencies.map(x => ({ ...x }));
+    await Projects.touch();
+    if (panelHandle) panelHandle.close();
+    toast('この時点に戻しました');
+    Store.renderAll();
   }
 
   async function refresh() {
@@ -69,5 +114,5 @@ const History = (() => {
     Store.setState({ history: fresh }, []);
   }
 
-  return { snapshot, canUndo, undo, openPanel, refresh };
+  return { snapshot, canUndo, undo, openPanel, restoreTo, refresh };
 })();
