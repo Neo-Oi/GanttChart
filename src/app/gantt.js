@@ -8,6 +8,9 @@ const Gantt = (() => {
 
   // 現在の描画スケール(ドラッグ時の逆変換に使う)。
   let scale = { origin: null, pxPerDay: 30, width: 0 };
+  // ドラッグ中は true。renderGantt() が #ganttBody を丸ごと差し替えると、
+  // 掴んでいるバー/ゴースト/ツールチップが指すDOMごと消えてしまうため、その間は再描画を抑制する。
+  let isDragging = false;
 
   function computeDateScale() {
     const pxPerDay = PX_PER_DAY[uiState.granularity] || 30;
@@ -172,6 +175,7 @@ const Gantt = (() => {
   }
 
   function renderGantt() {
+    if (isDragging) return; // ドラッグ中に外部から呼ばれても、掴んでいるDOMを壊さないよう何もしない
     const header = document.getElementById('ganttHeader');
     const body = document.getElementById('ganttBody');
     if (!state.project) { header.innerHTML = ''; body.innerHTML = ''; return; }
@@ -209,6 +213,7 @@ const Gantt = (() => {
     const origRightPx = dateToX(origEnd) + scale.pxPerDay; // バー右端のピクセル位置
     const MIN_PX = 6;
     const baseClasses = barEl.className; // ゴーストに複製する(lv0/lv1/lv2・ステータスの色/太さを引き継ぐため)
+    isDragging = true;
     e.preventDefault();
     document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
     barEl.classList.add('dragging'); // 実バー: 半透明のまま連続追従 = 「動いている」ことが分かる
@@ -264,6 +269,7 @@ const Gantt = (() => {
       barEl.classList.remove('dragging');
       ghost.remove();
       tip.remove();
+      isDragging = false; // 以降の renderGantt() を再び有効にする(この後の再描画呼び出しより前に)
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
         Schedules.updateDates(id, p.start, p.end);
