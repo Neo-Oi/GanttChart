@@ -13,6 +13,7 @@ async function init() {
   Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
   Store.subscribe(['gantt', 'tree', 'header'], NotesPanel.refresh);
   Store.subscribe(['gantt', 'tree'], () => vscrollRefresh());
+  Store.subscribe(['gantt', 'tree', 'header'], alignNotesTop);
 
   wireHeader();
   wireTree();
@@ -20,6 +21,7 @@ async function init() {
   wireAssist();
   wireScrollSync();
   wireKeyboard();
+  window.addEventListener('resize', alignNotesTop);
 
   await Projects.loadAll();
   const id = await Projects.ensureOne();
@@ -211,6 +213,15 @@ function openProjectSettings() {
       Projects.updateSettings({ name, startDate, endDate });
     }
   });
+}
+
+// メモパネルの上端を、ガントの日付(目盛りヘッダー)の上端に合わせる。
+// 進捗バーの高さが可変なので実測して反映する。
+function alignNotesTop() {
+  const gh = document.getElementById('ganttHeader');
+  const nf = document.getElementById('notesFloatHost');
+  if (!gh || !nf) return;
+  nf.style.top = gh.getBoundingClientRect().top + 'px';
 }
 
 // ---- スクロール同期 ----
