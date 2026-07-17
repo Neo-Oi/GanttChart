@@ -94,6 +94,9 @@ const Schedules = (() => {
       const dotClass = r.level === 2 ? effectiveStatus(n) : `lv${r.level}`;
       const sp = effectiveSpan(n);
       const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
+      // 名前の横に実稼働日数「(N日)」を表示(土日・祝日を除いた日数)。
+      const wdays = sp ? Holidays.countWorkingDays(sp.start, sp.end) : 0;
+      const daysSuffix = wdays ? `<span class="name-days">(${wdays}日)</span>` : '';
       // 状態表示: 親(子あり)は進捗%、末端タスクは状態ラベル(未着手/進行中/完了)。
       const effSt = effectiveStatus(n);
       const statusText = r.hasChildren ? `${progressPercent(n)}%` : statusLabel(effSt);
@@ -118,7 +121,7 @@ const Schedules = (() => {
           <span class="status-dot ${dotClass}"></span>
           <span class="num">${nums[n.id] || ''}</span>
           <span class="lvl-badge lv${r.level}" title="${LEVEL_NAME[r.level]}">${badgeText}</span>
-          <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
+          <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}${daysSuffix}</span>
           ${persistent}
           <span class="tree-spacer"></span>
           <span class="meta">${meta}</span>
@@ -151,15 +154,6 @@ const Schedules = (() => {
     const assist = document.body.dataset.mode === 'assist';
     const eg = examples(level);
     const n = editing || {};
-
-    // プロジェクトメモ(複数)を参考として表示する。中身があるものだけ、名前付きで並べる。
-    const noteList = (state.notes || []).filter(nt => nt.body && nt.body.trim());
-    const notesRef = noteList.length ? `
-      <details class="notes-ref" open>
-        <summary>プロジェクトメモを見る(参考)</summary>
-        <div class="notes-ref-preview md-preview">${noteList.map(nt =>
-          `<h5>${escapeHtml(nt.name || '(無題)')}</h5>${renderMarkdownSafe(nt.body)}`).join('')}</div>
-      </details>` : '';
 
     let start = n.startDate || '';
     let end = n.endDate || '';
@@ -231,11 +225,10 @@ const Schedules = (() => {
       }
     }
 
-    UI.openModal(`
+    const h = UI.openModal(`
       <div class="modal-head"><h2>${editing ? LEVEL_NAME[level] + 'を編集' : LEVEL_NAME[level] + 'を追加'}</h2></div>
       <form>
         <div class="modal-body">
-          ${notesRef}
           <div class="field">
             <label>${LEVEL_NAME[level]}名</label>
             <input name="name" value="${escapeHtml(n.name || '')}" placeholder="${assist ? '' : LEVEL_NAME[level] + '名'}" autocomplete="off">
@@ -257,12 +250,16 @@ const Schedules = (() => {
           </div>
         </div>
         <div class="modal-foot">
+          ${editing ? '<button type="button" class="btn danger" data-delnode style="margin-right:auto">削除</button>' : ''}
           <button type="button" class="btn" data-close>キャンセル</button>
           <button type="submit" class="btn primary">${editing ? '保存' : '追加'}</button>
         </div>
       </form>
     `, {
       onOpen(modal) {
+        // 削除(左端)。押し間違い防止に confirm を挟む(del 内で確認)。
+        const delBtn = modal.querySelector('[data-delnode]');
+        if (delBtn) delBtn.onclick = () => { h.close(); del(editing.id); };
         // ステータスセグメント
         const seg = modal.querySelector('.seg');
         if (seg) seg.querySelectorAll('button').forEach(b => b.onclick = () => {
