@@ -183,11 +183,13 @@ const Gantt = (() => {
     const rows = Schedules.flattenForDisplay();
     header.innerHTML = renderScale();
 
-    if (!rows.length) {
+    // マイルストーンはスケジュールの木構造と無関係な独立した日付マーカーなので、
+    // スケジュールの行が1つも無くても(マイルストーンだけあれば)描画する。
+    if (!rows.length && !state.milestones.length) {
       body.innerHTML = `<div class="gantt-empty">左でスケジュールを追加すると、ここにガントチャートが表示されます。</div>`;
       return;
     }
-    const totalH = rows.length * ROW_H;
+    const totalH = Math.max(rows.length * ROW_H, ROW_H * 3);
     body.innerHTML = `
       <div class="gantt-grid" style="width:${scale.width}px;height:${totalH}px;position:relative">
         ${renderGridDecor(totalH)}
