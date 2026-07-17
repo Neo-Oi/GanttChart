@@ -335,7 +335,14 @@ body[data-mode="normal"] #assistPane { display: none; }
   width: 3px; height: 55%; border-left: 2px solid rgba(255,255,255,.85); border-right: 2px solid rgba(255,255,255,.85);
 }
 .bar.lv2.done[data-bar]:hover .grip::after { border-color: rgba(30,41,59,.6); }
-.bar.dragging { box-shadow: 0 8px 24px rgba(15,23,42,.4) !important; filter: brightness(1.06); outline: 2px solid #fff; outline-offset: -1px; z-index: 9; opacity: .95; }
+/* ドラッグ中の実バー: 半透明のままマウスに連続追従させ、「動いている」ことを分かりやすくする。 */
+.bar.dragging { box-shadow: 0 8px 24px rgba(15,23,42,.35) !important; outline: 2px dashed #fff; outline-offset: -1px; z-index: 9; opacity: .4; }
+/* 予測ゴースト: ドロップした場合に確定する(グリッドにスナップ済みの)位置・幅を示す。 */
+.bar-ghost {
+  opacity: .6; box-shadow: none; outline: 2px dashed rgba(255,255,255,.9); outline-offset: -2px;
+  z-index: 10; pointer-events: none;
+}
+.bar-ghost::before, .bar-ghost::after { display: none; } /* summary の三角は複製しない */
 .bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
 .bar .grip { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
 .bar .grip.left { left: 0; } .bar .grip.right { right: 0; }
@@ -1923,9 +1930,17 @@ const Gantt = (() => {
     const origLeftPx = dateToX(origStart);
     const origRightPx = dateToX(origEnd) + scale.pxPerDay; // バー右端のピクセル位置
     const MIN_PX = 6;
+    const baseClasses = barEl.className; // ゴーストに複製する(lv0/lv1/lv2・ステータスの色/太さを引き継ぐため)
     e.preventDefault();
     document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
-    barEl.classList.add('dragging');
+    barEl.classList.add('dragging'); // 実バー: 半透明のまま連続追従 = 「動いている」ことが分かる
+
+    // 予測ゴースト: 確定される日付(グリッドにスナップ済み)の位置に、点線・半透明で表示する。
+    const ghost = document.createElement('div');
+    ghost.className = baseClasses + ' bar-ghost';
+    ghost.style.left = origLeftPx + 'px';
+    ghost.style.width = (origRightPx - origLeftPx) + 'px';
+    barEl.parentElement.appendChild(ghost);
 
     // ドラッグ中の日付ツールチップ
     const tip = document.createElement('div');
@@ -1937,8 +1952,8 @@ const Gantt = (() => {
       tip.style.top = (ev.clientY + 16) + 'px';
     }
 
-    // 見た目はマウスに1pxずつ連続追従させ(リアルタイム感を出す)、
-    // 確定する日付だけ「何日分動いたか」を丸めて計算する。
+    // 実バーの見た目はマウスに1pxずつ連続追従させ(リアルタイム感を出す)、
+    // ゴーストは「確定するとどこに来るか」を日単位のグリッドにスナップして表示する。
     function onMove(ev) {
       const deltaPx = ev.clientX - startX;
       const deltaDays = Math.round(deltaPx / scale.pxPerDay);
@@ -1959,6 +1974,8 @@ const Gantt = (() => {
       }
       barEl.style.left = leftPx + 'px';
       barEl.style.width = widthPx + 'px';
+      ghost.style.left = dateToX(ns) + 'px';
+      ghost.style.width = Math.max((dayDiff(ns, ne) + 1) * scale.pxPerDay, MIN_PX) + 'px';
       barEl._pending = { start: fmtDate(ns), end: fmtDate(ne) };
       showTip(ev, ns, ne);
     }
@@ -1967,6 +1984,7 @@ const Gantt = (() => {
       document.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
       barEl.classList.remove('dragging');
+      ghost.remove();
       tip.remove();
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {

@@ -208,9 +208,17 @@ const Gantt = (() => {
     const origLeftPx = dateToX(origStart);
     const origRightPx = dateToX(origEnd) + scale.pxPerDay; // バー右端のピクセル位置
     const MIN_PX = 6;
+    const baseClasses = barEl.className; // ゴーストに複製する(lv0/lv1/lv2・ステータスの色/太さを引き継ぐため)
     e.preventDefault();
     document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
-    barEl.classList.add('dragging');
+    barEl.classList.add('dragging'); // 実バー: 半透明のまま連続追従 = 「動いている」ことが分かる
+
+    // 予測ゴースト: 確定される日付(グリッドにスナップ済み)の位置に、点線・半透明で表示する。
+    const ghost = document.createElement('div');
+    ghost.className = baseClasses + ' bar-ghost';
+    ghost.style.left = origLeftPx + 'px';
+    ghost.style.width = (origRightPx - origLeftPx) + 'px';
+    barEl.parentElement.appendChild(ghost);
 
     // ドラッグ中の日付ツールチップ
     const tip = document.createElement('div');
@@ -222,8 +230,8 @@ const Gantt = (() => {
       tip.style.top = (ev.clientY + 16) + 'px';
     }
 
-    // 見た目はマウスに1pxずつ連続追従させ(リアルタイム感を出す)、
-    // 確定する日付だけ「何日分動いたか」を丸めて計算する。
+    // 実バーの見た目はマウスに1pxずつ連続追従させ(リアルタイム感を出す)、
+    // ゴーストは「確定するとどこに来るか」を日単位のグリッドにスナップして表示する。
     function onMove(ev) {
       const deltaPx = ev.clientX - startX;
       const deltaDays = Math.round(deltaPx / scale.pxPerDay);
@@ -244,6 +252,8 @@ const Gantt = (() => {
       }
       barEl.style.left = leftPx + 'px';
       barEl.style.width = widthPx + 'px';
+      ghost.style.left = dateToX(ns) + 'px';
+      ghost.style.width = Math.max((dayDiff(ns, ne) + 1) * scale.pxPerDay, MIN_PX) + 'px';
       barEl._pending = { start: fmtDate(ns), end: fmtDate(ne) };
       showTip(ev, ns, ne);
     }
@@ -252,6 +262,7 @@ const Gantt = (() => {
       document.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
       barEl.classList.remove('dragging');
+      ghost.remove();
       tip.remove();
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
