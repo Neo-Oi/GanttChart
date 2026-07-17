@@ -60,6 +60,8 @@ lint・テストスイートはまだ設定されていません。
 
 フレームワークも仮想DOMもありません。各パネルは `container.innerHTML = templateString(...)` による全置換です(`src/app/schedules.js#renderTree`、`src/app/gantt.js#renderGantt` が参考例)。ガントのスクロール位置は、innerHTML を置換する `#ganttBody` 自体がスクロールコンテナなので再レンダリングでリセットされ得ますが、パン/ズーム相当は粒度(`uiState.granularity`)で制御しているため実害は小さめです。`Store.setState`/`setUiState` はタグに購読したレンダー関数だけを呼び、全面更新が必要なとき(プロジェクト切替・undo など)は `Store.renderAll()` を使います。
 
+**落とし穴: mousedown で掴んだ要素への参照を、その後の再描画をまたいで使わない。** `innerHTML` 全置換は子要素を作り直すため、`mousedown` ハンドラで捕まえた DOM 参照(例: ガントバー)に対して、同期的に `render*()`(`innerHTML` を差し替える系)を呼んでしまうと、その参照は直後に親を失った(`parentElement === null`)要素になり、以後スタイルを変更しても画面には一切反映されません。バーのドラッグ開始(`Gantt.beginDrag`)がまさにこれで壊れていたことがあります(`main.js#wireGantt` の mousedown ハンドラが `selectNode()`→`Gantt.renderGantt()` を先に呼んでいた)。掴んだ要素をその後操作する処理の前には、その要素を含むコンテナの `innerHTML` 差し替えを挟まないこと。`Gantt.js` にはドラッグ中 `renderGantt()` を no-op にする `isDragging` フラグもあり、ドラッグ中に外部要因(undo、他のドラッグの非同期完了など)で再描画が走っても同じ理由で壊れないようにしています。
+
 クリック処理は、`main.js`(`wireTree`、`wireGantt`、`wireHeader` など)で一度だけ配線される**永続的なコンテナ上でのイベント委譲**を使っています(`#treeList`・`#ganttBody` は innerHTML を置換されるが要素自体は生き続けるので、そこに委譲する)。毎回のレンダリング/モーダルを開くたびに実行される関数の中で、生き続けるコンテナへ直接リスナーをアタッチしないでください — リスナーが蓄積します。モーダル/パネル内の要素は `UI.openModal`/`UI.openPanel` が呼び出しごとにホストの中身を完全に置き換えるため、その内部要素には `onOpen` 内で直接アタッチして構いません(蓄積しない)。
 
 ### ガントの日付・スケール計算
