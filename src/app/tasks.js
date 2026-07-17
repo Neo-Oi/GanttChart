@@ -6,9 +6,19 @@
 const TaskPanel = (() => {
   let openSubId = null;
 
+  let panelHandle = null;
+
+  // 編集/追加/削除のモーダルを開く前に、このパネル(#panelHost, モーダルより前面)を閉じる。
+  // 閉じないとパネルの背景がモーダルを覆い、モーダルが操作できない(非活性)ため。
+  function closeThen(fn) {
+    openSubId = null;
+    if (panelHandle) panelHandle.close();
+    fn();
+  }
+
   function open(subId) {
     openSubId = subId;
-    UI.openPanel(`
+    panelHandle = UI.openPanel(`
       <div class="panel-head">
         <h2>タスク管理</h2>
         <button class="icon-btn" data-close>✕</button>
@@ -18,17 +28,19 @@ const TaskPanel = (() => {
       <div class="panel-foot"><button class="btn primary" id="taskAddBtn" style="width:100%">＋ タスクを追加</button></div>
     `, {
       onOpen(panel) {
+        const subId2 = subId;
         const body = panel.querySelector('#taskPanelBody');
         body.addEventListener('click', (e) => {
           const taskEl = e.target.closest('[data-task]');
           if (!taskEl) return;
           const st = e.target.closest('[data-st]');
           if (st) { Schedules.setStatus(taskEl.dataset.task, st.dataset.st); return; }
-          if (e.target.closest('[data-edit]')) { Schedules.openEditor({ id: taskEl.dataset.task }); return; }
-          if (e.target.closest('[data-del]')) { Schedules.del(taskEl.dataset.task); return; }
+          const tid = taskEl.dataset.task;
+          if (e.target.closest('[data-edit]')) { closeThen(() => Schedules.openEditor({ id: tid })); return; }
+          if (e.target.closest('[data-del]')) { closeThen(() => Schedules.del(tid)); return; }
         });
         panel.querySelector('#taskAddBtn').onclick = () =>
-          Schedules.openEditor({ parentId: openSubId, level: 2 });
+          closeThen(() => Schedules.openEditor({ parentId: subId2, level: 2 }));
         renderBody();
       }
     });

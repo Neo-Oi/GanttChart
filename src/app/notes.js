@@ -91,6 +91,33 @@ const NotesPanel = (() => {
     nameIn.oninput = () => { cur.name = nameIn.value; };
     nameIn.onchange = () => { persist(cur); renderList(); };
     ta.oninput = () => { cur.body = ta.value; };
+    // Teams風: 箇条書き/チェックリスト/番号リストの行で Enter すると次の項目を自動継続。
+    // 空の項目で Enter すると項目(マーカー)を消してリストを抜ける。
+    ta.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      const pos = ta.selectionStart;
+      if (pos !== ta.selectionEnd) return;
+      const val = ta.value;
+      const ls = val.lastIndexOf('\n', pos - 1) + 1;
+      const line = val.slice(ls, pos);
+      const bullet = /^(\s*)([-*])\s(\[[ xX]\]\s)?(.*)$/.exec(line);
+      const numbered = /^(\s*)(\d+)\.\s(.*)$/.exec(line);
+      let prefix = null, content = null;
+      if (bullet) { prefix = bullet[1] + bullet[2] + ' ' + (bullet[3] ? '[ ] ' : ''); content = bullet[4]; }
+      else if (numbered) { prefix = numbered[1] + (parseInt(numbered[2], 10) + 1) + '. '; content = numbered[3]; }
+      if (prefix === null) return;
+      e.preventDefault();
+      if (content.trim() === '') {
+        // 空項目 → マーカーを消してリストを抜ける
+        ta.value = val.slice(0, ls) + val.slice(pos);
+        ta.selectionStart = ta.selectionEnd = ls;
+      } else {
+        const insert = '\n' + prefix;
+        ta.value = val.slice(0, pos) + insert + val.slice(pos);
+        ta.selectionStart = ta.selectionEnd = pos + insert.length;
+      }
+      cur.body = ta.value;
+    });
 
     const tabs = main.querySelectorAll('.notes-tab');
     tabs.forEach(t => t.onclick = () => {

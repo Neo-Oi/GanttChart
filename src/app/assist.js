@@ -92,10 +92,54 @@ const Assist = (() => {
     if (i === 4) { Milestones.openEditor(null); return; }
   }
 
+  // 全ステップ完了後の「できること」アクション一覧。
+  function actions() {
+    return [
+      { key: 'schedule', icon: '＋', title: 'スケジュール追加', body: '新しいフェーズを追加します。' },
+      { key: 'sub', icon: '＋', title: 'サブスケ追加', body: '成果物・工程を追加します。' },
+      { key: 'task', icon: '＋', title: 'タスク設定', body: '具体的な作業を追加します。' },
+      { key: 'milestone', icon: '◆', title: 'マイルストーン選択', body: '納期やレビュー会などの目印を置きます。' },
+      { key: 'memo', icon: '📝', title: 'メモ出し', body: 'プロジェクトメモを開きます。' },
+    ];
+  }
+
+  function runAction(key) {
+    if (key === 'schedule') return runStep(0);
+    if (key === 'sub') return runStep(1);
+    if (key === 'task') return runStep(2);
+    if (key === 'milestone') return Milestones.openEditor(null);
+    if (key === 'memo') return NotesPanel.open();
+  }
+
   function renderAssist() {
     const host = document.getElementById('assistGuide');
     if (document.body.dataset.mode !== 'assist' || !state.project) { host.innerHTML = ''; return; }
     const list = steps();
+    const allDone = list.every(s => s.done);
+
+    if (allDone) {
+      // すべて完了 → 「できること」アクション一覧に変化。
+      host.innerHTML = `
+        <div class="assist-head">
+          <h2>できること</h2>
+          <p>ひととおり揃いました。ここから自由に追加・編集できます。</p>
+        </div>
+        <div class="guide-steps">
+          ${actions().map(a => `
+            <button type="button" class="guide-step action" data-action="${a.key}">
+              <span class="guide-check act">${a.icon}</span>
+              <div class="guide-body">
+                <h3>${escapeHtml(a.title)}</h3>
+                <p>${escapeHtml(a.body)}</p>
+              </div>
+              <span class="go">›</span>
+            </button>`).join('')}
+        </div>
+        <div class="assist-tip">全ステップ完了 🎉 いつでもここから操作できます。</div>
+      `;
+      return;
+    }
+
     const activeIdx = list.findIndex(s => !s.done);
     host.innerHTML = `
       <div class="assist-head">
@@ -118,5 +162,5 @@ const Assist = (() => {
     `;
   }
 
-  return { templateList, applyTemplate, renderAssist, runStep };
+  return { templateList, applyTemplate, renderAssist, runStep, runAction };
 })();
