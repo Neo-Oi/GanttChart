@@ -118,7 +118,15 @@ function wireGantt() {
   const body = document.getElementById('ganttBody');
   body.addEventListener('mousedown', (e) => {
     const bar = e.target.closest('.bar[data-bar]');
-    if (bar) { selectNode(bar.dataset.bar); Gantt.beginDrag(e, bar); }
+    if (bar) {
+      // selectNode() は Gantt.renderGantt() で #ganttBody を丸ごと差し替えるため、
+      // ここで呼ぶと掴んだ直後に bar 自身がDOMから外れ、以後のドラッグ演出(半透明化・
+      // ゴースト・追従)が「もう画面にない要素」に対する操作になり何も見えなくなる。
+      // 選択状態はツリー側にだけ反映し、ガントの再描画はドラッグ終了後の通常フローに任せる。
+      Store.setUiState({ selectedId: bar.dataset.bar }, []);
+      Schedules.renderTree();
+      Gantt.beginDrag(e, bar);
+    }
   });
   body.addEventListener('click', (e) => {
     const ms = e.target.closest('[data-ms]');
