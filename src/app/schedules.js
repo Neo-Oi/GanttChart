@@ -152,12 +152,13 @@ const Schedules = (() => {
     const eg = examples(level);
     const n = editing || {};
 
-    // プロジェクトメモ(Markdown)を参考として表示する。書いていなければ何も出さない。
-    const projectNotes = state.project && state.project.notesMd && state.project.notesMd.trim();
-    const notesRef = projectNotes ? `
+    // プロジェクトメモ(複数)を参考として表示する。中身があるものだけ、名前付きで並べる。
+    const noteList = (state.notes || []).filter(nt => nt.body && nt.body.trim());
+    const notesRef = noteList.length ? `
       <details class="notes-ref" open>
         <summary>プロジェクトメモを見る(参考)</summary>
-        <div class="notes-ref-preview md-preview">${renderMarkdownSafe(state.project.notesMd)}</div>
+        <div class="notes-ref-preview md-preview">${noteList.map(nt =>
+          `<h5>${escapeHtml(nt.name || '(無題)')}</h5>${renderMarkdownSafe(nt.body)}`).join('')}</div>
       </details>` : '';
 
     let start = n.startDate || '';
