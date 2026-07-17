@@ -90,7 +90,8 @@ const Schedules = (() => {
     const nums = computeNumbering();
     host.innerHTML = rows.map(r => {
       const n = r.node;
-      const st = effectiveStatus(n);
+      // WBSの点はガントのバー色と揃える: タスク(lv2)はステータス濃淡、それ以外は階層色。
+      const dotClass = r.level === 2 ? effectiveStatus(n) : `lv${r.level}`;
       const sp = effectiveSpan(n);
       const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
       // 子を持つノード(スケジュール/タスク持ちサブスケジュール)は展開用の三角。タスクは葉。
@@ -108,7 +109,7 @@ const Schedules = (() => {
         <div class="tree-row lv${r.level} ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
              style="padding-left:${8 + r.level * 16}px">
           ${twist}
-          <span class="status-dot ${st}"></span>
+          <span class="status-dot ${dotClass}"></span>
           <span class="num">${nums[n.id] || ''}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
           <span class="meta">${meta}</span>
