@@ -542,18 +542,19 @@ body[data-mode="normal"] #assistPane { display: none; }
 .md-preview .md-list input[type="checkbox"] { margin-right: 4px; vertical-align: -2px; }
 .md-preview code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-/* ===== プロジェクトメモ: 右下ドッキングの非モーダル浮遊パネル ===== */
+/* ===== プロジェクトメモ: 右端に縦いっぱいドッキングする非モーダルパネル ===== */
 /* モーダル/サイドパネルと違い、背景をブロックしない(バックドロップなし)。
    「開いたまま他の操作(スケジュール追加・ドラッグなど)ができる」ようにするための設計。
    #modalHost/#panelHost より前にDOM順で置き、z-indexは付けない
-   → モーダル/サイドパネルを開いたときは、それらが自然に手前に来る。 */
+   → モーダル/サイドパネルを開いたときは、それらが自然に手前に来る。
+   縦幅は画面いっぱい(ヘッダー分だけ空ける)、横幅は中央寄せのモーダル(最大520px)と
+   被らない程度に絞る。横方向だけリサイズ可(縦は常に画面いっぱいのまま)。 */
 .notes-float {
-  position: fixed; right: 20px; bottom: 20px;
-  width: 380px; height: 460px; min-width: 300px; min-height: 260px;
-  max-width: calc(100vw - 40px); max-height: calc(100vh - 100px);
-  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px;
+  position: fixed; right: 0; top: var(--header-h); bottom: 0;
+  width: 300px; min-width: 260px; max-width: 34vw;
+  background: var(--surface); border-left: 1px solid var(--border-strong);
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
-  overflow: hidden; resize: both;
+  overflow: hidden; resize: horizontal;
 }
 .notes-float.hidden { display: none; }
 .notes-float .panel-body { overflow: hidden; }
