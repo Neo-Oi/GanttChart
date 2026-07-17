@@ -240,6 +240,11 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
 .tree-row .meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+/* WBSの状態表示: 親は進捗%、末端タスクは 未着手/進行中/完了。進行具合を一目で。 */
+.tree-row .row-status { flex: 0 0 auto; min-width: 38px; text-align: right; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tree-row .row-status.todo { color: #94a3b8; }
+.tree-row .row-status.doing { color: var(--accent-strong); }
+.tree-row .row-status.done { color: #16a34a; }
 .tree-row .row-actions { display: none; gap: 2px; }
 .tree-row:hover .row-actions { display: inline-flex; }
 .icon-btn {
@@ -296,10 +301,11 @@ body[data-mode="normal"] #assistPane { display: none; }
 .grid-holiday { position: absolute; top: 0; bottom: 0; background: rgba(239, 68, 68, .06); }
 
 .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 6; pointer-events: none; }
+/* 今日/マイルストーンの旗はヘッダー(目盛りの一段上)の下端に置き、行のバーと重ならないようにする。 */
 .today-flag {
-  position: absolute; top: 0; transform: translateX(-50%);
+  position: absolute; bottom: 1px; transform: translateX(-50%);
   background: #ef4444; color: #fff; font-size: 10px; font-weight: 700;
-  padding: 1px 6px; border-radius: 0 0 5px 5px; z-index: 7; pointer-events: none;
+  padding: 1px 6px; border-radius: 5px 5px 0 0; z-index: 9; pointer-events: none;
 }
 
 .gantt-row { position: relative; height: var(--row-h); border-bottom: 1px solid var(--border); }
@@ -370,16 +376,16 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
-/* マイルストーン: 今日線と同様、チャートを縦に貫く線 + 上部のフラグ(スクロール位置に関係なく見える)。 */
+/* マイルストーン: チャートを縦に貫く点線(グリッド内) + ヘッダー下端の旗。 */
 .milestone-line {
   position: absolute; top: 0; width: 0; z-index: 5; pointer-events: none;
   border-left: 2px dashed #d97706;
 }
 .milestone-flag {
-  position: absolute; top: 0; transform: translateX(-50%);
-  background: #f59e0b; color: #fff; border: 0; z-index: 8;
+  position: absolute; bottom: 1px; transform: translateX(-50%);
+  background: #f59e0b; color: #fff; border: 0; z-index: 10;
   font-size: 10px; font-weight: 700; white-space: nowrap;
-  padding: 2px 8px; border-radius: 0 0 6px 6px;
+  padding: 2px 8px; border-radius: 5px 5px 0 0;
   cursor: pointer; box-shadow: var(--shadow-sm);
 }
 .milestone-flag:hover { background: #d97706; }
@@ -544,13 +550,21 @@ body[data-mode="normal"] #assistPane { display: none; }
    被らない程度に絞る。横方向だけリサイズ可(縦は常に画面いっぱいのまま)。 */
 .notes-float {
   position: fixed; right: 0; top: var(--header-h); bottom: 0;
-  width: 300px; min-width: 260px; max-width: 34vw;
+  width: 600px; min-width: 360px; max-width: 70vw;
   background: var(--surface); border-left: 1px solid var(--border-strong);
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
   overflow: hidden; resize: horizontal;
 }
 .notes-float.hidden { display: none; }
 .notes-float .panel-body { overflow: hidden; }
+
+/* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう
+   その分だけ本体側に右余白を確保し、パネル幅は固定(横リサイズ不可)にする。 */
+body[data-mode="normal"] #notesBtn { display: none; }
+body[data-mode="normal"] #appBody { padding-right: 600px; }
+body[data-mode="normal"] #progressStrip { padding-right: 616px; }
+body[data-mode="normal"] .notes-float { width: 600px; min-width: 600px; max-width: 600px; resize: none; }
+body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示なので閉じるボタンは隠す */
 
 .notes-body { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
 .notes-editor {

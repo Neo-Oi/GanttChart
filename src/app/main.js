@@ -140,6 +140,11 @@ function wireGantt() {
     const bar = e.target.closest('.bar[data-bar]');
     if (bar) Schedules.openEditor({ id: bar.dataset.bar });
   });
+  // マイルストーンの旗はヘッダー(#ganttHeader)に移動したので、こちらでもクリックを拾う。
+  document.getElementById('ganttHeader').addEventListener('click', (e) => {
+    const ms = e.target.closest('[data-ms]');
+    if (ms) Milestones.openEditor(ms.dataset.ms);
+  });
 }
 
 function selectNode(id) {
