@@ -56,6 +56,43 @@ function fmtRangeLabel(d) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+// 最小限の安全なMarkdown→HTML変換(見出し/箇条書き・チェックリスト/太字・斜体・コード/段落のみ)。
+// 外部ライブラリは使わない方針(CLAUDE.md参照)。各行を escapeHtml してから記法を変換するので、
+// メモ内にHTMLタグを書いてもそのまま表示され、実行されることはない。
+function renderMarkdownSafe(md) {
+  const lines = String(md || '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let inList = false;
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+  const inlineMd = (s) => s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+
+  for (const raw of lines) {
+    const line = escapeHtml(raw);
+    let m = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (m) { closeList(); out.push(`<h${m[1].length + 2}>${inlineMd(m[2])}</h${m[1].length + 2}>`); continue; }
+    m = /^[-*]\s+\[([ xX])\]\s+(.*)$/.exec(line);
+    if (m) {
+      if (!inList) { out.push('<ul class="md-list">'); inList = true; }
+      out.push(`<li><input type="checkbox" disabled ${/x/i.test(m[1]) ? 'checked' : ''}> ${inlineMd(m[2])}</li>`);
+      continue;
+    }
+    m = /^[-*]\s+(.+)$/.exec(line);
+    if (m) {
+      if (!inList) { out.push('<ul class="md-list">'); inList = true; }
+      out.push(`<li>${inlineMd(m[1])}</li>`);
+      continue;
+    }
+    closeList();
+    if (line.trim() === '') continue;
+    out.push(`<p>${inlineMd(line)}</p>`);
+  }
+  closeList();
+  return out.join('\n');
+}
+
 // トースト通知
 function toast(msg) {
   const host = document.getElementById('toastHost');

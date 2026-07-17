@@ -69,6 +69,7 @@ function wireHeader() {
   document.getElementById('projectSelect').onchange = (e) => Projects.select(e.target.value);
   document.getElementById('newProjectBtn').onclick = openNewProjectDialog;
   document.getElementById('projectMenuBtn').onclick = openProjectSettings;
+  document.getElementById('notesBtn').onclick = () => NotesPanel.open();
   document.getElementById('modeToggle').onclick = (e) => {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);
@@ -256,6 +257,15 @@ function openNewProjectDialog() {
           </div>
           <input type="hidden" name="template" value="${templates[0] ? templates[0].key : 'blank'}">
         </div>
+        <div class="field">
+          <label>メモ(Markdown・任意)</label>
+          <textarea name="notesMd" class="notes-editor notes-editor-sm" placeholder="タスクの洗い出し・下書きに。あとから編集もできます"></textarea>
+          <div class="notes-import-row">
+            <button type="button" class="btn" id="npNotesFileBtn">📄 .mdファイルを読み込む</button>
+            <input type="file" accept=".md,text/markdown" id="npNotesFile" hidden>
+          </div>
+          <span class="eg-hint">例: 「- 要件を洗い出す」「- [ ] キックオフMTGの日程調整」のように書いておくと、スケジュール/サブスケジュール/タスクの追加画面で見ながら入力できます</span>
+        </div>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn" data-close>キャンセル</button>
@@ -275,12 +285,23 @@ function openNewProjectDialog() {
       function markTpl(key) { cards.forEach(c => c.style.borderColor = c.dataset.tpl === key ? 'var(--accent)' : ''); }
       markTpl(tplInput.value);
       cards.forEach(c => c.onclick = () => { tplInput.value = c.dataset.tpl; markTpl(c.dataset.tpl); });
+
+      const notesFile = modal.querySelector('#npNotesFile');
+      modal.querySelector('#npNotesFileBtn').onclick = () => notesFile.click();
+      notesFile.onchange = () => {
+        const f = notesFile.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => { modal.querySelector('[name=notesMd]').value = reader.result; };
+        reader.readAsText(f);
+      };
     },
     onSubmit(form, modal) {
       const name = form.name.value.trim() || '新しいプロジェクト';
       const mode = modal.querySelector('.seg').dataset.mode;
       const tpl = form.template.value;
-      Projects.create(name, mode, tpl);
+      const notesMd = form.notesMd.value;
+      Projects.create(name, mode, tpl, notesMd);
     }
   });
 }

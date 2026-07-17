@@ -28,9 +28,12 @@ const Projects = (() => {
     Store.renderAll();
   }
 
-  async function create(name, mode, templateKey) {
+  async function create(name, mode, templateKey, notesMd) {
     const now = Date.now();
-    const project = { id: uid('p'), name: name || '新しいプロジェクト', mode: mode || 'assist', createdAt: now, updatedAt: now };
+    const project = {
+      id: uid('p'), name: name || '新しいプロジェクト', mode: mode || 'assist',
+      notesMd: notesMd || '', createdAt: now, updatedAt: now,
+    };
     await DB.put('projects', project);
     if (templateKey && templateKey !== 'blank') {
       await Assist.applyTemplate(project.id, templateKey);
@@ -46,6 +49,14 @@ const Projects = (() => {
     await DB.put('projects', p);
     await loadAll();
     Store.setState({ project: p }, ['header']);
+  }
+
+  // プロジェクトのメモ(Markdown。タスクの洗い出し・下書き用)を更新する。
+  async function updateNotes(notesMd) {
+    if (!state.project) return;
+    const p = { ...state.project, notesMd, updatedAt: Date.now() };
+    await DB.put('projects', p);
+    Store.setState({ project: p }, []);
   }
 
   async function setMode(mode) {
@@ -87,5 +98,5 @@ const Projects = (() => {
     return p.id;
   }
 
-  return { loadAll, select, create, rename, setMode, touch, remove, ensureOne };
+  return { loadAll, select, create, rename, updateNotes, setMode, touch, remove, ensureOne };
 })();

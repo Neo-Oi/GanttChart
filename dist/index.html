@@ -530,6 +530,40 @@ body[data-mode="normal"] #assistPane { display: none; }
 .hist-item .when { color: var(--text-faint); font-size: 11px; }
 .hist-item .what { color: var(--text); }
 
+/* ===== Markdown プレビュー(共通の見た目) ===== */
+.md-preview { font-size: 13px; line-height: 1.65; color: var(--text); }
+.md-preview h3 { font-size: 15px; margin: 14px 0 6px; }
+.md-preview h4 { font-size: 14px; margin: 12px 0 5px; }
+.md-preview h5 { font-size: 13px; margin: 10px 0 4px; font-weight: 700; color: var(--text-muted); }
+.md-preview h3:first-child, .md-preview h4:first-child, .md-preview h5:first-child { margin-top: 0; }
+.md-preview p { margin: 0 0 8px; }
+.md-preview .md-list { margin: 0 0 10px; padding-left: 22px; }
+.md-preview .md-list li { margin-bottom: 4px; }
+.md-preview .md-list input[type="checkbox"] { margin-right: 4px; vertical-align: -2px; }
+.md-preview code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* ===== プロジェクトメモパネル ===== */
+.notes-body { display: flex; flex-direction: column; gap: 12px; }
+.notes-editor {
+  width: 100%; min-height: 160px; resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6;
+  padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text);
+}
+.notes-editor:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.notes-editor-sm { min-height: 90px; }
+.notes-preview { border-top: 1px dashed var(--border); padding-top: 10px; }
+.notes-preview-empty { color: var(--text-faint); font-size: 12px; margin: 0; }
+.notes-foot { display: flex; gap: 8px; }
+.notes-import-row { margin-top: 8px; }
+
+/* ===== スケジュール/サブスケジュール/タスク編集モーダル内の「メモを見る」参考ブロック ===== */
+.notes-ref { margin-bottom: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.notes-ref summary { cursor: pointer; padding: 9px 12px; font-size: 12px; font-weight: 700; color: var(--accent-strong); list-style: none; }
+.notes-ref summary::-webkit-details-marker { display: none; }
+.notes-ref summary::before { content: '▸ '; }
+.notes-ref[open] summary::before { content: '▾ '; }
+.notes-ref-preview { max-height: 160px; overflow-y: auto; padding: 0 12px 12px; font-size: 12px; }
+
 /* ステータスセグメント(モーダル内) */
 .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
 .seg button { border: 0; background: var(--surface); padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted); border-right: 1px solid var(--border); }
@@ -568,6 +602,7 @@ body[data-mode="normal"] #assistPane { display: none; }
         <span class="hd-logo">GanttChart</span>
         <select id="projectSelect" class="hd-select" title="プロジェクトを切り替え"></select>
         <button id="newProjectBtn" class="hd-btn" title="新しいプロジェクト">＋ 新規</button>
+        <button id="notesBtn" class="hd-btn" title="プロジェクトメモ(Markdown)">📝 メモ</button>
         <button id="projectMenuBtn" class="hd-btn" title="プロジェクト設定 / 削除">⚙</button>
       </div>
       <div class="hd-center">
@@ -678,6 +713,43 @@ function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
 function fmtRangeLabel(d) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
+}
+
+// 最小限の安全なMarkdown→HTML変換(見出し/箇条書き・チェックリスト/太字・斜体・コード/段落のみ)。
+// 外部ライブラリは使わない方針(CLAUDE.md参照)。各行を escapeHtml してから記法を変換するので、
+// メモ内にHTMLタグを書いてもそのまま表示され、実行されることはない。
+function renderMarkdownSafe(md) {
+  const lines = String(md || '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let inList = false;
+  const closeList = () => { if (inList) { out.push('</ul>'); inList = false; } };
+  const inlineMd = (s) => s
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+
+  for (const raw of lines) {
+    const line = escapeHtml(raw);
+    let m = /^(#{1,3})\s+(.+)$/.exec(line);
+    if (m) { closeList(); out.push(`<h${m[1].length + 2}>${inlineMd(m[2])}</h${m[1].length + 2}>`); continue; }
+    m = /^[-*]\s+\[([ xX])\]\s+(.*)$/.exec(line);
+    if (m) {
+      if (!inList) { out.push('<ul class="md-list">'); inList = true; }
+      out.push(`<li><input type="checkbox" disabled ${/x/i.test(m[1]) ? 'checked' : ''}> ${inlineMd(m[2])}</li>`);
+      continue;
+    }
+    m = /^[-*]\s+(.+)$/.exec(line);
+    if (m) {
+      if (!inList) { out.push('<ul class="md-list">'); inList = true; }
+      out.push(`<li>${inlineMd(m[1])}</li>`);
+      continue;
+    }
+    closeList();
+    if (line.trim() === '') continue;
+    out.push(`<p>${inlineMd(line)}</p>`);
+  }
+  closeList();
+  return out.join('\n');
 }
 
 // トースト通知
@@ -1048,9 +1120,12 @@ const Projects = (() => {
     Store.renderAll();
   }
 
-  async function create(name, mode, templateKey) {
+  async function create(name, mode, templateKey, notesMd) {
     const now = Date.now();
-    const project = { id: uid('p'), name: name || '新しいプロジェクト', mode: mode || 'assist', createdAt: now, updatedAt: now };
+    const project = {
+      id: uid('p'), name: name || '新しいプロジェクト', mode: mode || 'assist',
+      notesMd: notesMd || '', createdAt: now, updatedAt: now,
+    };
     await DB.put('projects', project);
     if (templateKey && templateKey !== 'blank') {
       await Assist.applyTemplate(project.id, templateKey);
@@ -1066,6 +1141,14 @@ const Projects = (() => {
     await DB.put('projects', p);
     await loadAll();
     Store.setState({ project: p }, ['header']);
+  }
+
+  // プロジェクトのメモ(Markdown。タスクの洗い出し・下書き用)を更新する。
+  async function updateNotes(notesMd) {
+    if (!state.project) return;
+    const p = { ...state.project, notesMd, updatedAt: Date.now() };
+    await DB.put('projects', p);
+    Store.setState({ project: p }, []);
   }
 
   async function setMode(mode) {
@@ -1107,7 +1190,76 @@ const Projects = (() => {
     return p.id;
   }
 
-  return { loadAll, select, create, rename, setMode, touch, remove, ensureOne };
+  return { loadAll, select, create, rename, updateNotes, setMode, touch, remove, ensureOne };
+})();
+
+
+// ===== app/notes.js =====
+// ==== app/notes.js ====
+// プロジェクトメモ(Markdown)。タスクの洗い出し・下書き用。
+// 編集(テキストエリア)とプレビューを同時に表示し、.mdファイルの読み込み・書き出しができる。
+// 履歴(history.js)の追跡対象外(CLAUDE.md の HISTORY_DOMAINS 参照)。
+
+const NotesPanel = (() => {
+  function open() {
+    if (!state.project) return;
+    const md = state.project.notesMd || '';
+    UI.openPanel(`
+      <div class="panel-head">
+        <h2>プロジェクトメモ</h2>
+        <button class="icon-btn" data-close>✕</button>
+      </div>
+      <div class="panel-sub">
+        <div class="tp-hint">タスクの洗い出し・下書きに使えます。スケジュール/サブスケジュール/タスクの追加・編集画面からも参照できます。Markdown記法(見出し #、箇条書き -、チェックリスト - [ ]、太字 **太字**)が使えます。</div>
+      </div>
+      <div class="panel-body notes-body">
+        <textarea id="notesEditor" class="notes-editor">${escapeHtml(md)}</textarea>
+        <div class="notes-preview md-preview" id="notesPreview"></div>
+      </div>
+      <div class="panel-foot notes-foot">
+        <button type="button" class="btn" id="notesImportBtn">📄 読み込む</button>
+        <button type="button" class="btn" id="notesExportBtn">📄 書き出す</button>
+        <button type="button" class="btn primary" id="notesSaveBtn">保存</button>
+        <input type="file" accept=".md,text/markdown" id="notesFileInput" hidden>
+      </div>
+    `, {
+      onOpen(panel) {
+        const ta = panel.querySelector('#notesEditor');
+        const preview = panel.querySelector('#notesPreview');
+        const update = () => {
+          const html = renderMarkdownSafe(ta.value);
+          preview.innerHTML = html || '<p class="notes-preview-empty">ここにプレビューが表示されます。</p>';
+        };
+        update();
+        ta.addEventListener('input', update);
+
+        const fileInput = panel.querySelector('#notesFileInput');
+        panel.querySelector('#notesImportBtn').onclick = () => fileInput.click();
+        fileInput.onchange = () => {
+          const f = fileInput.files[0];
+          if (!f) return;
+          const reader = new FileReader();
+          reader.onload = () => { ta.value = reader.result; update(); };
+          reader.readAsText(f);
+        };
+        panel.querySelector('#notesExportBtn').onclick = () => {
+          const blob = new Blob([ta.value], { type: 'text/markdown' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `${state.project.name || 'notes'}.md`;
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+        panel.querySelector('#notesSaveBtn').onclick = async () => {
+          await Projects.updateNotes(ta.value);
+          toast('メモを保存しました');
+        };
+      }
+    });
+  }
+
+  return { open };
 })();
 
 
@@ -1257,6 +1409,14 @@ const Schedules = (() => {
     const eg = examples(level);
     const n = editing || {};
 
+    // プロジェクトメモ(Markdown)を参考として表示する。書いていなければ何も出さない。
+    const projectNotes = state.project && state.project.notesMd && state.project.notesMd.trim();
+    const notesRef = projectNotes ? `
+      <details class="notes-ref" open>
+        <summary>プロジェクトメモを見る(参考)</summary>
+        <div class="notes-ref-preview md-preview">${renderMarkdownSafe(state.project.notesMd)}</div>
+      </details>` : '';
+
     let start = n.startDate || '';
     let end = n.endDate || '';
     // 新規の子は、初期値として親の日程を受け継ぐ(サブスケジュール←スケジュール等)。
@@ -1311,6 +1471,7 @@ const Schedules = (() => {
       <div class="modal-head"><h2>${editing ? LEVEL_NAME[level] + 'を編集' : LEVEL_NAME[level] + 'を追加'}</h2></div>
       <form>
         <div class="modal-body">
+          ${notesRef}
           <div class="field">
             <label>${LEVEL_NAME[level]}名</label>
             <input name="name" value="${escapeHtml(n.name || '')}" placeholder="${assist ? '' : LEVEL_NAME[level] + '名'}" autocomplete="off">
@@ -2371,6 +2532,7 @@ function wireHeader() {
   document.getElementById('projectSelect').onchange = (e) => Projects.select(e.target.value);
   document.getElementById('newProjectBtn').onclick = openNewProjectDialog;
   document.getElementById('projectMenuBtn').onclick = openProjectSettings;
+  document.getElementById('notesBtn').onclick = () => NotesPanel.open();
   document.getElementById('modeToggle').onclick = (e) => {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);
@@ -2558,6 +2720,15 @@ function openNewProjectDialog() {
           </div>
           <input type="hidden" name="template" value="${templates[0] ? templates[0].key : 'blank'}">
         </div>
+        <div class="field">
+          <label>メモ(Markdown・任意)</label>
+          <textarea name="notesMd" class="notes-editor notes-editor-sm" placeholder="タスクの洗い出し・下書きに。あとから編集もできます"></textarea>
+          <div class="notes-import-row">
+            <button type="button" class="btn" id="npNotesFileBtn">📄 .mdファイルを読み込む</button>
+            <input type="file" accept=".md,text/markdown" id="npNotesFile" hidden>
+          </div>
+          <span class="eg-hint">例: 「- 要件を洗い出す」「- [ ] キックオフMTGの日程調整」のように書いておくと、スケジュール/サブスケジュール/タスクの追加画面で見ながら入力できます</span>
+        </div>
       </div>
       <div class="modal-foot">
         <button type="button" class="btn" data-close>キャンセル</button>
@@ -2577,12 +2748,23 @@ function openNewProjectDialog() {
       function markTpl(key) { cards.forEach(c => c.style.borderColor = c.dataset.tpl === key ? 'var(--accent)' : ''); }
       markTpl(tplInput.value);
       cards.forEach(c => c.onclick = () => { tplInput.value = c.dataset.tpl; markTpl(c.dataset.tpl); });
+
+      const notesFile = modal.querySelector('#npNotesFile');
+      modal.querySelector('#npNotesFileBtn').onclick = () => notesFile.click();
+      notesFile.onchange = () => {
+        const f = notesFile.files[0];
+        if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => { modal.querySelector('[name=notesMd]').value = reader.result; };
+        reader.readAsText(f);
+      };
     },
     onSubmit(form, modal) {
       const name = form.name.value.trim() || '新しいプロジェクト';
       const mode = modal.querySelector('.seg').dataset.mode;
       const tpl = form.template.value;
-      Projects.create(name, mode, tpl);
+      const notesMd = form.notesMd.value;
+      Projects.create(name, mode, tpl, notesMd);
     }
   });
 }
