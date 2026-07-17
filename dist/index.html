@@ -26,13 +26,10 @@
   --assist-w: 300px;
   --header-h: 56px;
 
-  /* 状態色(タスクのステータス)。進行中はモードのアクセント色に追従する(下で上書き)。 */
-  --st-todo: #94a3b8;
-  --st-todo-bg: #e2e8f0;
-  --st-doing: #38bdf8;
-  --st-doing-bg: #bae6fd;
-  --st-done: #22c55e;
-  --st-done-bg: #bbf7d0;
+  /* タスクのステータス色: モードに関わらずグレーの濃淡で統一(未着手=濃 → 完了=淡)。 */
+  --tone-todo: #475569;
+  --tone-doing: #94a3b8;
+  --tone-done: #e2e8f0;
 
   /* アクセント(モードで切替。既定=アシスト/緑) */
   --accent: #0f9d6b;
@@ -42,26 +39,20 @@
   --on-accent: #ffffff;
 }
 
-/* アシストモード: 緑基調。ステータスは同系色の濃淡(未着手=淡 → 進行中 → 完了=濃)。 */
+/* アシストモード: 緑基調(ボタン・アクセント用。タスクの状態色は :root のグレー濃淡に統一)。 */
 body[data-mode="assist"] {
   --accent: #0f9d6b;
   --accent-strong: #0b7a54;
   --accent-soft: #e7f8f1;
   --accent-line: #86dcbb;
-  --tone-todo: #0a5e42;   /* 濃(未着手) */
-  --tone-doing: #17a878;  /* 中(進行中) */
-  --tone-done: #c4ecda;   /* 淡(完了) */
 }
 
-/* ノーマルモード: 青基調。同系色の濃淡。 */
+/* ノーマルモード: 青基調。 */
 body[data-mode="normal"] {
   --accent: #2563eb;
   --accent-strong: #1d4ed8;
   --accent-soft: #e8f0fe;
   --accent-line: #9cc0fb;
-  --tone-todo: #17379e;   /* 濃(未着手) */
-  --tone-doing: #2f6ff0;  /* 中(進行中) */
-  --tone-done: #cfe0fb;   /* 淡(完了) */
 }
 
 * { box-sizing: border-box; }
@@ -141,15 +132,15 @@ button { font-family: inherit; cursor: pointer; }
 .hd-btn {
   height: 34px;
   padding: 0 13px;
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--accent-line);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--text);
+  color: var(--accent-strong);
   font-size: 13px;
-  font-weight: 500;
-  transition: background .12s, border-color .12s;
+  font-weight: 600;
+  transition: background .12s, border-color .12s, color .12s;
 }
-.hd-btn:hover:not(:disabled) { background: var(--surface-2); border-color: var(--text-faint); }
+.hd-btn:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
 .hd-btn:disabled { opacity: .45; cursor: default; }
 
 .mode-toggle {
@@ -263,7 +254,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   background: transparent; color: var(--text-muted); font-size: 13px;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.icon-btn:hover { background: var(--border); color: var(--text); }
+.icon-btn:hover { background: var(--accent-soft); color: var(--accent-strong); }
 
 .task-chip {
   flex: 0 0 auto; height: 22px; padding: 0 9px; margin-left: 2px;
@@ -373,17 +364,19 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
-.milestone {
-  position: absolute; top: 50%; width: 16px; height: 16px;
-  transform: translate(-50%, -50%) rotate(45deg);
-  background: #f59e0b; border: 2px solid #b45309; z-index: 5;
-  cursor: pointer;
+/* マイルストーン: 今日線と同様、チャートを縦に貫く線 + 上部のフラグ(スクロール位置に関係なく見える)。 */
+.milestone-line {
+  position: absolute; top: 0; width: 0; z-index: 5; pointer-events: none;
+  border-left: 2px dashed #d97706;
 }
-.milestone-label {
-  position: absolute; top: 50%; transform: translateY(-50%);
-  font-size: 11px; color: #92400e; font-weight: 600; white-space: nowrap;
-  padding-left: 14px; pointer-events: none;
+.milestone-flag {
+  position: absolute; top: 0; transform: translateX(-50%);
+  background: #f59e0b; color: #fff; border: 0; z-index: 8;
+  font-size: 10px; font-weight: 700; white-space: nowrap;
+  padding: 2px 8px; border-radius: 0 0 6px 6px;
+  cursor: pointer; box-shadow: var(--shadow-sm);
 }
+.milestone-flag:hover { background: #d97706; }
 
 #depSvg { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 4; overflow: visible; }
 .dep-path { stroke: var(--text-muted); stroke-width: 1.5; fill: none; }
@@ -502,10 +495,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 
 .btn {
   height: 38px; padding: 0 18px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong); background: var(--surface);
-  font-size: 13px; font-weight: 600; color: var(--text);
+  border: 1px solid var(--accent-line); background: var(--surface);
+  font-size: 13px; font-weight: 600; color: var(--accent-strong);
 }
-.btn:hover { background: var(--surface-2); }
+.btn:hover { background: var(--accent-soft); border-color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .btn.primary:hover { background: var(--accent-strong); }
 .btn.danger { color: #dc2626; border-color: #fca5a5; }
@@ -528,9 +521,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 .seg { display: inline-flex; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); overflow: hidden; }
 .seg button { border: 0; background: var(--surface); padding: 8px 14px; font-size: 12px; font-weight: 600; color: var(--text-muted); border-right: 1px solid var(--border); }
 .seg button:last-child { border-right: 0; }
-.seg button.on.todo { background: var(--st-todo-bg); color: #475569; }
-.seg button.on.doing { background: var(--st-doing-bg); color: #075985; }
-.seg button.on.done { background: var(--st-done-bg); color: #065f46; }
+.seg button.on.todo { background: var(--tone-todo); color: #fff; }
+.seg button.on.doing { background: var(--tone-doing); color: #fff; }
+.seg button.on.done { background: var(--tone-done); color: #1e293b; }
+.seg button.on.accent { background: var(--accent); color: var(--on-accent); } /* タスク状態以外の選択(モード選択など) */
 
 /* ===== トースト ===== */
 .toast-host { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: center; }
@@ -1838,13 +1832,14 @@ const Gantt = (() => {
   }
 
   // --- マイルストーン ---
+  // 今日線と同じく、チャートを縦に貫く線として描画する(行数やスクロール位置に関係なく見える)。
   function renderMilestones(totalH) {
     return state.milestones.map(m => {
       const d = parseDate(m.date);
       if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) > 0) return '';
       const x = dateToX(d) + scale.pxPerDay / 2;
-      return `<div class="milestone" data-ms="${m.id}" style="left:${x}px;top:11px" title="${escapeHtml(m.name)} (${m.date})"></div>
-              <div class="milestone-label" style="left:${x}px;top:11px">${escapeHtml(m.name)}</div>`;
+      return `<div class="milestone-line" style="left:${x}px;height:${totalH}px"></div>
+              <button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${x}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`;
     }).join('');
   }
 
@@ -2474,7 +2469,7 @@ function openNewProjectDialog() {
         <div class="field">
           <label>モード</label>
           <div class="seg" data-mode="assist">
-            <button type="button" data-m="assist" class="on done">アシスト(初学者向け・緑)</button>
+            <button type="button" data-m="assist" class="on accent">アシスト(初学者向け・緑)</button>
             <button type="button" data-m="normal" class="">ノーマル(経験者向け・青)</button>
           </div>
         </div>
@@ -2503,7 +2498,7 @@ function openNewProjectDialog() {
       seg.querySelectorAll('button').forEach(b => b.onclick = () => {
         seg.dataset.mode = b.dataset.m;
         seg.querySelectorAll('button').forEach(x => x.className = '');
-        b.className = 'on done';
+        b.className = 'on accent';
       });
       const tplInput = modal.querySelector('[name=template]');
       const cards = modal.querySelectorAll('.template-card');
