@@ -11,6 +11,7 @@
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 3px rgba(15, 23, 42, .08);
   --shadow-md: 0 4px 12px rgba(15, 23, 42, .10), 0 2px 4px rgba(15, 23, 42, .06);
   --shadow-lg: 0 12px 32px rgba(15, 23, 42, .16);
+  --bar-summary: #475569;
   --radius: 10px;
   --radius-sm: 7px;
   --row-h: 38px;
@@ -18,12 +19,12 @@
   --assist-w: 300px;
   --header-h: 56px;
 
-  /* 状態色(タスクのステータス) — アクセント色とは別トーンで衝突を避ける */
+  /* 状態色(タスクのステータス)。進行中はモードのアクセント色に追従する(下で上書き)。 */
   --st-todo: #94a3b8;
   --st-todo-bg: #e2e8f0;
   --st-doing: #38bdf8;
   --st-doing-bg: #bae6fd;
-  --st-done: #34d399;
+  --st-done: #22c55e;
   --st-done-bg: #bbf7d0;
 
   /* アクセント(モードで切替。既定=アシスト/緑) */
@@ -34,20 +35,26 @@
   --on-accent: #ffffff;
 }
 
-/* アシストモード: 緑基調 */
+/* アシストモード: 緑基調。ステータスは同系色の濃淡(未着手=淡 → 進行中 → 完了=濃)。 */
 body[data-mode="assist"] {
   --accent: #0f9d6b;
   --accent-strong: #0b7a54;
   --accent-soft: #e7f8f1;
   --accent-line: #86dcbb;
+  --tone-todo: #c4ecda;   /* 淡(白背景に近い緑) */
+  --tone-doing: #17a878;  /* 中 */
+  --tone-done: #0a5e42;   /* 濃 */
 }
 
-/* ノーマルモード: 青基調 */
+/* ノーマルモード: 青基調。同系色の濃淡。 */
 body[data-mode="normal"] {
   --accent: #2563eb;
   --accent-strong: #1d4ed8;
   --accent-soft: #e8f0fe;
   --accent-line: #9cc0fb;
+  --tone-todo: #cfe0fb;   /* 淡 */
+  --tone-doing: #2f6ff0;  /* 中 */
+  --tone-done: #17379e;   /* 濃 */
 }
 
 * { box-sizing: border-box; }
@@ -64,9 +71,28 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-#app { display: flex; flex-direction: column; height: 100vh; }
+/* アプリ全体をモード色で縁取り(現在のモードが一目で分かる) */
+#app { display: flex; flex-direction: column; height: 100vh; border-top: 3px solid var(--accent); transition: border-color .2s; }
 
 button { font-family: inherit; cursor: pointer; }
+
+/* スクロールバーもテーマに追従 */
+*::-webkit-scrollbar { width: 11px; height: 11px; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 7px; border: 3px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--accent-line); background-clip: padding-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* 全体の進捗バー */
+.progress-strip {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+  padding: 8px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.progress-strip.hidden { display: none !important; }
+.progress-strip .pr-label { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.progress-strip .pr-track { flex: 1 1 auto; height: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.progress-strip .pr-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-strong)); border-radius: 999px; transition: width .3s ease; }
+.progress-strip .pr-pct { font-size: 13px; font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+.progress-strip .pr-sub { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 
 /* ===== ヘッダー ===== */
 #appHeader {
@@ -228,10 +254,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .icon-btn:hover { background: var(--border); color: var(--text); }
 
-.status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; }
-.status-dot.todo { background: var(--st-todo); }
-.status-dot.doing { background: var(--st-doing); }
-.status-dot.done { background: var(--st-done); }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; border: 1px solid rgba(15,23,42,.12); }
+.status-dot.todo { background: var(--tone-todo); }
+.status-dot.doing { background: var(--tone-doing); }
+.status-dot.done { background: var(--tone-done); }
 
 .tree-empty { padding: 40px 20px; text-align: center; color: var(--text-faint); font-size: 13px; }
 
@@ -290,20 +316,22 @@ body[data-mode="normal"] #assistPane { display: none; }
 .bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
 .bar .grip { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
 .bar .grip.left { left: 0; } .bar .grip.right { right: 0; }
-.bar.todo { background: var(--st-todo); }
-.bar.doing { background: var(--st-doing); }
-.bar.done { background: var(--st-done); }
+/* ステータスは同系色の濃淡。未着手は淡いので文字は濃色にする。 */
+.bar.todo { background: var(--tone-todo); color: #1e293b; }
+.bar.todo .bar-label { text-shadow: none; }
+.bar.doing { background: var(--tone-doing); }
+.bar.done { background: var(--tone-done); }
 
-/* サマリーバー(親) */
+/* サマリーバー(スケジュール/サブスケジュール)は中立の灰色のまま。 */
 .bar.summary {
   top: 14px; height: calc(var(--row-h) - 26px);
-  background: #475569; border-radius: 3px; cursor: default;
-  box-shadow: none; opacity: .92;
+  background: var(--bar-summary); border-radius: 3px; cursor: default;
+  box-shadow: none; opacity: .95;
 }
 .bar.summary::before, .bar.summary::after {
   content: ""; position: absolute; bottom: -5px; width: 0; height: 0;
   border-left: 5px solid transparent; border-right: 5px solid transparent;
-  border-top: 6px solid #475569;
+  border-top: 6px solid var(--bar-summary);
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
@@ -338,8 +366,13 @@ body[data-mode="normal"] #assistPane { display: none; }
 .guide-step {
   display: flex; gap: 10px; padding: 12px; margin-bottom: 8px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: var(--shadow-sm); transition: border-color .15s, box-shadow .15s;
+  box-shadow: var(--shadow-sm); transition: border-color .15s, box-shadow .15s, transform .1s;
+  cursor: pointer; text-align: left; width: 100%; font: inherit; color: inherit;
 }
+.guide-step:hover { border-color: var(--accent-line); transform: translateY(-1px); }
+.guide-step:active { transform: none; }
+.guide-step .go { margin-left: auto; align-self: center; color: var(--text-faint); font-size: 15px; }
+.guide-step:hover .go { color: var(--accent); }
 .guide-step.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .guide-step.done { opacity: .72; }
 .guide-check {
