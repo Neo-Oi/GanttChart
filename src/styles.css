@@ -632,7 +632,6 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう右余白を確保。 */
 body[data-mode="normal"] #notesBtn { display: none; }
 body[data-mode="normal"] #appBody { padding-right: 450px; }
-body[data-mode="normal"] #progressStrip { padding-right: 466px; }
 body[data-mode="normal"] .notes-float { width: 450px; min-width: 450px; max-width: 450px; resize: none; }
 body[data-mode="normal"] #notesFloatClose { display: none; }
 

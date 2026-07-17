@@ -151,6 +151,7 @@ const NotesPanel = (() => {
     if (!state.project) return;
     if (builtForProjectId !== state.project.id) build();
     host().classList.remove('hidden');
+    if (typeof alignNotesTop === 'function') alignNotesTop();
   }
   function close() { host().classList.add('hidden'); }
   function toggle() { host().classList.contains('hidden') ? open() : close(); }

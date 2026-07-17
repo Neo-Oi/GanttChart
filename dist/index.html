@@ -639,7 +639,6 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう右余白を確保。 */
 body[data-mode="normal"] #notesBtn { display: none; }
 body[data-mode="normal"] #appBody { padding-right: 450px; }
-body[data-mode="normal"] #progressStrip { padding-right: 466px; }
 body[data-mode="normal"] .notes-float { width: 450px; min-width: 450px; max-width: 450px; resize: none; }
 body[data-mode="normal"] #notesFloatClose { display: none; }
 
@@ -1527,6 +1526,7 @@ const NotesPanel = (() => {
     if (!state.project) return;
     if (builtForProjectId !== state.project.id) build();
     host().classList.remove('hidden');
+    if (typeof alignNotesTop === 'function') alignNotesTop();
   }
   function close() { host().classList.add('hidden'); }
   function toggle() { host().classList.contains('hidden') ? open() : close(); }
@@ -3015,6 +3015,7 @@ async function init() {
   Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
   Store.subscribe(['gantt', 'tree', 'header'], NotesPanel.refresh);
   Store.subscribe(['gantt', 'tree'], () => vscrollRefresh());
+  Store.subscribe(['gantt', 'tree', 'header'], alignNotesTop);
 
   wireHeader();
   wireTree();
@@ -3022,6 +3023,7 @@ async function init() {
   wireAssist();
   wireScrollSync();
   wireKeyboard();
+  window.addEventListener('resize', alignNotesTop);
 
   await Projects.loadAll();
   const id = await Projects.ensureOne();
@@ -3213,6 +3215,15 @@ function openProjectSettings() {
       Projects.updateSettings({ name, startDate, endDate });
     }
   });
+}
+
+// メモパネルの上端を、ガントの日付(目盛りヘッダー)の上端に合わせる。
+// 進捗バーの高さが可変なので実測して反映する。
+function alignNotesTop() {
+  const gh = document.getElementById('ganttHeader');
+  const nf = document.getElementById('notesFloatHost');
+  if (!gh || !nf) return;
+  nf.style.top = gh.getBoundingClientRect().top + 'px';
 }
 
 // ---- スクロール同期 ----
