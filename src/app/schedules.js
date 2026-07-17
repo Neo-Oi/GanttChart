@@ -438,25 +438,14 @@ const Schedules = (() => {
     afterChange();
   }
 
-  async function reorder(id, newParentId, newOrder) {
-    History.snapshot();
-    const node = byId(id);
-    node.parentId = newParentId;
-    node.order = newOrder;
-    // 兄弟の order を詰め直す
-    childrenOf(newParentId).forEach((n, i) => { n.order = i; });
-    for (const n of childrenOf(newParentId)) await DB.put('schedules', n);
-    await Projects.touch();
-    afterChange();
-  }
-
   function afterChange() {
     Store.renderAll();
   }
 
+  // add/saveNode/progressPercent/MAX_LEVEL はモジュール内でのみ使う(外部への公開は実際に使われるものだけ)。
   return {
     childrenOf, byId, levelOf, hasChildren, computeNumbering, flattenForDisplay,
-    effectiveStatus, effectiveSpan, renderTree, openEditor, add, saveNode, del, reorder,
-    updateDates, setStatus, shiftSubtree, progressPercent, LEVEL_NAME, MAX_LEVEL, statusLabel,
+    effectiveStatus, effectiveSpan, renderTree, openEditor, del,
+    updateDates, setStatus, shiftSubtree, LEVEL_NAME, statusLabel,
   };
 })();

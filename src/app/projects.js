@@ -68,14 +68,6 @@ const Projects = (() => {
     return updateSettings({ name });
   }
 
-  // プロジェクトのメモ(Markdown。タスクの洗い出し・下書き用)を更新する。
-  async function updateNotes(notesMd) {
-    if (!state.project) return;
-    const p = { ...state.project, notesMd, updatedAt: Date.now() };
-    await DB.put('projects', p);
-    Store.setState({ project: p }, []);
-  }
-
   async function setMode(mode) {
     if (!state.project || state.project.mode === mode) return;
     const p = { ...state.project, mode, updatedAt: Date.now() };
@@ -115,5 +107,5 @@ const Projects = (() => {
     return p.id;
   }
 
-  return { loadAll, select, create, rename, updateNotes, updateSettings, setMode, touch, remove, ensureOne };
+  return { loadAll, select, create, rename, updateSettings, setMode, touch, remove, ensureOne };
 })();

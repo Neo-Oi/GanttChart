@@ -110,12 +110,11 @@ const DB = (() => {
     await bulkRemove('historyLog', excess.map(e => e.id));
   }
 
-  // meta ストア(選択中プロジェクトIDなど)
-  function getMeta(key) { return reqP(tx('meta', 'readonly').get(key)); }
+  // meta ストア(選択中プロジェクトIDなどの記録用)
   function setMeta(key, value) { return reqP(tx('meta', 'readwrite').put({ key, value })); }
 
   return {
     open, getAll, getAllByProject, get, put, remove, bulkRemove,
-    getMeta, setMeta, HISTORY_DOMAINS,
+    setMeta, HISTORY_DOMAINS,
   };
 })();

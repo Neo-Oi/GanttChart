@@ -125,5 +125,6 @@ const ExportImport = (() => {
     toast('読み込みました');
   }
 
-  return { openMenu, exportJson, exportExcel, importJson };
+  // 各出力/読込はメニュー経由でのみ呼ばれる(外部公開は openMenu だけ)。
+  return { openMenu };
 })();

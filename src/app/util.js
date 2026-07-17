@@ -63,8 +63,6 @@ function periodWithinYears(startStr, endStr, maxYears) {
   return dayDiff(e, addYears(s, maxYears)) >= 0; // e <= s + maxYears年
 }
 
-function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
-
 function fmtRangeLabel(d) {
   return `${d.getMonth() + 1}/${d.getDate()}`;
 }
