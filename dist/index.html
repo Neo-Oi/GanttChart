@@ -196,6 +196,18 @@ body[data-mode="normal"] .mode-opt[data-mode="normal"] {
   min-width: 0;
   background: var(--surface-2);
 }
+/* スケジュール欄とガント欄の間の縦スクロールバー */
+.vscroll {
+  flex: 0 0 14px; position: relative; background: var(--surface-2);
+  border-right: 1px solid var(--border); border-left: 1px solid var(--border);
+}
+.vscroll.hidden { display: none; }
+.vscroll-thumb {
+  position: absolute; left: 3px; right: 3px; top: 0; min-height: 30px;
+  background: var(--border-strong); border-radius: 6px; cursor: grab;
+}
+.vscroll-thumb:hover { background: var(--accent-line); }
+.vscroll-thumb:active { cursor: grabbing; background: var(--accent); }
 #assistPane {
   flex: 0 0 var(--assist-w);
   border-left: 1px solid var(--border);
@@ -340,6 +352,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 .grid-holiday { position: absolute; top: 0; bottom: 0; background: rgba(239, 68, 68, .06); }
 
 .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 6; pointer-events: none; }
+/* プロジェクト期間の境界(開始/終了)。テーマ色の太めの点線 + ヘッダー旗。 */
+.project-line { position: absolute; top: 0; width: 0; z-index: 5; pointer-events: none; border-left: 2px dashed var(--accent-strong); opacity: .7; }
+.project-flag {
+  position: absolute; bottom: 1px; transform: translateX(-50%);
+  background: var(--accent-strong); color: #fff; z-index: 9;
+  font-size: 9px; font-weight: 700; white-space: nowrap;
+  padding: 2px 7px; border-radius: 5px 5px 0 0; pointer-events: none;
+}
 /* 今日/マイルストーンの旗はヘッダー(目盛りの一段上)の下端に置き、行のバーと重ならないようにする。 */
 .today-flag {
   position: absolute; bottom: 1px; transform: translateX(-50%);
@@ -728,6 +748,9 @@ body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示な�
         <div id="treeList" class="tree-list"></div>
       </section>
 
+      <!-- スケジュール欄とガント欄の間の縦スクロールバー(両方を上下同期) -->
+      <div id="vscroll" class="vscroll hidden"><div id="vscrollThumb" class="vscroll-thumb"></div></div>
+
       <section id="ganttPane" class="pane">
         <div id="ganttHeader" class="gantt-header"></div>
         <div id="ganttBody" class="gantt-body"></div>
@@ -800,6 +823,19 @@ function addDays(d, n) {
 function isWeekend(d) {
   const w = d.getDay();
   return w === 0 || w === 6;
+}
+
+// d の years 年後の同月同日(期間上限の判定に使う)。
+function addYears(d, years) {
+  return new Date(d.getFullYear() + years, d.getMonth(), d.getDate());
+}
+
+// 開始〜終了の期間が maxYears 年以内か(両方指定されている場合のみ判定)。
+function periodWithinYears(startStr, endStr, maxYears) {
+  const s = parseDate(startStr), e = parseDate(endStr);
+  if (!s || !e) return true;
+  if (dayDiff(s, e) < 0) return false;         // 逆転はNG
+  return dayDiff(e, addYears(s, maxYears)) >= 0; // e <= s + maxYears年
 }
 
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
@@ -1232,11 +1268,12 @@ const Projects = (() => {
     Store.renderAll();
   }
 
-  async function create(name, mode, templateKey, notesMd) {
+  async function create(name, mode, templateKey, notesMd, startDate, endDate) {
     const now = Date.now();
     const project = {
       id: uid('p'), name: name || '新しいプロジェクト', mode: mode || 'assist',
-      notesMd: notesMd || '', createdAt: now, updatedAt: now,
+      notesMd: notesMd || '', startDate: startDate || '', endDate: endDate || '',
+      createdAt: now, updatedAt: now,
     };
     await DB.put('projects', project);
     if (templateKey && templateKey !== 'blank') {
@@ -1247,12 +1284,18 @@ const Projects = (() => {
     return project;
   }
 
-  async function rename(name) {
+  // プロジェクトの基本設定(名称・期間)を更新する。期間は上限3年(呼び出し側で検証済み)。
+  async function updateSettings(patch) {
     if (!state.project) return;
-    const p = { ...state.project, name, updatedAt: Date.now() };
+    const p = { ...state.project, ...patch, updatedAt: Date.now() };
     await DB.put('projects', p);
     await loadAll();
-    Store.setState({ project: p }, ['header']);
+    Store.setState({ project: p }, []);
+    Store.renderAll();
+  }
+
+  async function rename(name) {
+    return updateSettings({ name });
   }
 
   // プロジェクトのメモ(Markdown。タスクの洗い出し・下書き用)を更新する。
@@ -1302,7 +1345,7 @@ const Projects = (() => {
     return p.id;
   }
 
-  return { loadAll, select, create, rename, updateNotes, setMode, touch, remove, ensureOne };
+  return { loadAll, select, create, rename, updateNotes, updateSettings, setMode, touch, remove, ensureOne };
 })();
 
 
@@ -2172,6 +2215,12 @@ const Gantt = (() => {
       if (!min || d < min) min = d;
       if (!max || d > max) max = d;
     }
+    // プロジェクト期間もタイムラインに含める(スケジュールが無くても期間全体が見える)。
+    if (state.project) {
+      const ps = parseDate(state.project.startDate), pe = parseDate(state.project.endDate);
+      if (ps && (!min || ps < min)) min = ps;
+      if (pe && (!max || pe > max)) max = pe;
+    }
     const today = todayDate();
     if (!min) { min = addDays(today, -7); max = addDays(today, 30); }
     if (!max || max < min) max = addDays(min, 14);
@@ -2216,7 +2265,14 @@ const Gantt = (() => {
       } else if (g === 'week') {
         if (d.getDay() === 1) { show = true; major = d.getDate() <= 7; label = major ? `${d.getMonth() + 1}月` : ''; sub = `${d.getMonth() + 1}/${d.getDate()}`; }
       } else if (g === 'month') {
-        if (d.getDate() === 1) { show = true; major = d.getMonth() === 0; label = major ? `${d.getFullYear()}` : ''; sub = `${d.getMonth() + 1}月`; }
+        if (d.getDate() === 1) {
+          show = true;
+          const isQ = d.getMonth() % 3 === 0;  // 四半期の頭(1/4/7/10月)
+          major = isQ;
+          // 月粒度でも四半期(Q)を表示する。四半期頭には Q ラベル、1月は年も。
+          label = isQ ? (d.getMonth() === 0 ? `${d.getFullYear()} Q1` : `Q${Math.floor(d.getMonth() / 3) + 1}`) : '';
+          sub = `${d.getMonth() + 1}月`;
+        }
       } else if (g === 'quarter') {
         if (d.getDate() === 1 && d.getMonth() % 3 === 0) { show = true; major = d.getMonth() === 0; label = major ? `${d.getFullYear()}` : ''; sub = `Q${Math.floor(d.getMonth() / 3) + 1}`; }
       }
@@ -2262,6 +2318,14 @@ const Gantt = (() => {
       const mx = dateToX(d) + scale.pxPerDay / 2;
       parts.push(`<div class="milestone-line" style="left:${mx}px;height:${totalH}px"></div>`);
     });
+    // プロジェクト期間の開始/終了の境界線(縦線)。
+    if (state.project) {
+      [state.project.startDate, state.project.endDate].forEach(ds => {
+        const pd = parseDate(ds);
+        if (!pd || dayDiff(scale.origin, pd) < 0 || dayDiff(pd, scale.end) < 0) return;
+        parts.push(`<div class="project-line" style="left:${dateToX(pd)}px;height:${totalH}px"></div>`);
+      });
+    }
     return parts.join('');
   }
 
@@ -2280,6 +2344,16 @@ const Gantt = (() => {
       const mx = dateToX(d) + scale.pxPerDay / 2;
       out.push(`<button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${mx}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`);
     });
+    // プロジェクト期間の開始/終了フラグ
+    if (state.project) {
+      const mk = (ds, txt) => {
+        const pd = parseDate(ds);
+        if (!pd || dayDiff(scale.origin, pd) < 0 || dayDiff(pd, scale.end) < 0) return;
+        out.push(`<div class="project-flag" style="left:${dateToX(pd)}px" title="${txt} (${ds})">${txt}</div>`);
+      };
+      mk(state.project.startDate, '計画開始');
+      mk(state.project.endDate, '計画終了');
+    }
     return out.join('');
   }
 
@@ -2859,6 +2933,7 @@ async function init() {
   Store.subscribe(['gantt', 'tree'], renderProgress);
   Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
   Store.subscribe(['gantt', 'tree', 'header'], NotesPanel.refresh);
+  Store.subscribe(['gantt', 'tree'], () => vscrollRefresh());
 
   wireHeader();
   wireTree();
@@ -3020,6 +3095,14 @@ function openProjectSettings() {
           <input name="name" value="${escapeHtml(p.name)}" autocomplete="off">
         </div>
         <div class="field">
+          <label>プロジェクト期間(任意・最長3年)</label>
+          <div class="row2" style="display:flex;gap:12px">
+            <div style="flex:1"><input type="date" name="startDate" value="${p.startDate || ''}"></div>
+            <div style="flex:1"><input type="date" name="endDate" value="${p.endDate || ''}"></div>
+          </div>
+          <span class="eg-hint">プロジェクト全体の開始〜終了。ガントの表示範囲に反映されます。</span>
+        </div>
+        <div class="field">
           <label>削除</label>
           <button type="button" class="btn danger" data-del style="width:100%">🗑 このプロジェクトを削除</button>
           <span class="eg-hint">このプロジェクトのスケジュール・マイルストーンなどがすべて消えます(元に戻せません)。</span>
@@ -3027,7 +3110,7 @@ function openProjectSettings() {
       </div>
       <div class="modal-foot">
         <button type="button" class="btn" data-close>閉じる</button>
-        <button type="submit" class="btn primary">名前を保存</button>
+        <button type="submit" class="btn primary">保存</button>
       </div>
     </form>
   `, {
@@ -3042,12 +3125,17 @@ function openProjectSettings() {
     onSubmit(form) {
       const name = form.name.value.trim();
       if (!name) { toast('名前を入力してください'); return false; }
-      Projects.rename(name);
+      const startDate = form.startDate.value, endDate = form.endDate.value;
+      if (!periodWithinYears(startDate, endDate, 3)) {
+        toast('プロジェクト期間は最長3年まで(開始が終了より後もNG)です'); return false;
+      }
+      Projects.updateSettings({ name, startDate, endDate });
     }
   });
 }
 
 // ---- スクロール同期 ----
+let vscrollRefresh = () => {};
 function wireScrollSync() {
   const body = document.getElementById('ganttBody');
   const header = document.getElementById('ganttHeader');
@@ -3055,15 +3143,63 @@ function wireScrollSync() {
   let lock = false;
   body.addEventListener('scroll', () => {
     header.scrollLeft = body.scrollLeft;
-    if (lock) return; lock = true;
-    tree.scrollTop = body.scrollTop;
-    lock = false;
+    if (!lock) { lock = true; tree.scrollTop = body.scrollTop; lock = false; }
+    vscrollRefresh();
   });
   tree.addEventListener('scroll', () => {
-    if (lock) return; lock = true;
-    body.scrollTop = tree.scrollTop;
-    lock = false;
+    if (!lock) { lock = true; body.scrollTop = tree.scrollTop; lock = false; }
+    vscrollRefresh();
   });
+
+  // マウスホイールでガントを左右に移動する(縦ホイール→横スクロール)。
+  // 縦移動は中央の縦スクロールバー、またはスケジュール欄側のホイールで行う。
+  body.addEventListener('wheel', (e) => {
+    if (e.shiftKey || e.deltaY === 0) return; // shift+ホイールは既定(横)に任せる
+    body.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, { passive: false });
+
+  wireVScroll(body, tree);
+}
+
+// スケジュール欄とガント欄の間の縦スクロールバー(両ペインを上下同期でスクロール)。
+function wireVScroll(body, tree) {
+  const vs = document.getElementById('vscroll');
+  const thumb = document.getElementById('vscrollThumb');
+  function refresh() {
+    const sh = body.scrollHeight, ch = body.clientHeight;
+    if (sh <= ch + 2) { vs.classList.add('hidden'); return; }
+    vs.classList.remove('hidden');
+    const trackH = vs.clientHeight;
+    const thumbH = Math.max(30, trackH * ch / sh);
+    const maxScroll = sh - ch;
+    const top = maxScroll > 0 ? (body.scrollTop / maxScroll) * (trackH - thumbH) : 0;
+    thumb.style.height = thumbH + 'px';
+    thumb.style.transform = `translateY(${top}px)`;
+  }
+  vscrollRefresh = refresh;
+
+  let dragging = false, startY = 0, startScroll = 0;
+  thumb.addEventListener('mousedown', (e) => {
+    dragging = true; startY = e.clientY; startScroll = body.scrollTop;
+    document.body.style.userSelect = 'none'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const trackH = vs.clientHeight, thumbH = thumb.offsetHeight;
+    const maxScroll = body.scrollHeight - body.clientHeight;
+    const perPx = (trackH - thumbH) > 0 ? maxScroll / (trackH - thumbH) : 0;
+    body.scrollTop = startScroll + (e.clientY - startY) * perPx; // scroll イベントで tree も同期
+  });
+  document.addEventListener('mouseup', () => { if (dragging) { dragging = false; document.body.style.userSelect = ''; } });
+  vs.addEventListener('mousedown', (e) => {
+    if (e.target === thumb) return;
+    const rect = vs.getBoundingClientRect();
+    const maxScroll = body.scrollHeight - body.clientHeight;
+    body.scrollTop = ((e.clientY - rect.top) / rect.height) * maxScroll;
+  });
+  window.addEventListener('resize', refresh);
+  refresh();
 }
 
 // ---- キーボード ----
@@ -3096,6 +3232,14 @@ function openNewProjectDialog() {
             <button type="button" data-m="assist" class="on accent">アシスト(初学者向け・緑)</button>
             <button type="button" data-m="normal" class="">ノーマル(経験者向け・青)</button>
           </div>
+        </div>
+        <div class="field">
+          <label>プロジェクト期間(任意・最長3年)</label>
+          <div class="row2" style="display:flex;gap:12px">
+            <div style="flex:1"><input type="date" name="startDate"></div>
+            <div style="flex:1"><input type="date" name="endDate"></div>
+          </div>
+          <span class="eg-hint">プロジェクト全体の開始〜終了。最長3年まで。後から変更できます。</span>
         </div>
         <div class="field">
           <label>テンプレート</label>
@@ -3154,7 +3298,11 @@ function openNewProjectDialog() {
       const mode = modal.querySelector('.seg').dataset.mode;
       const tpl = form.template.value;
       const notesMd = form.notesMd.value;
-      Projects.create(name, mode, tpl, notesMd);
+      const startDate = form.startDate.value, endDate = form.endDate.value;
+      if (!periodWithinYears(startDate, endDate, 3)) {
+        toast('プロジェクト期間は最長3年まで(開始が終了より後もNG)です'); return false;
+      }
+      Projects.create(name, mode, tpl, notesMd, startDate, endDate);
     }
   });
 }

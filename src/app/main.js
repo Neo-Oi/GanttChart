@@ -12,6 +12,7 @@ async function init() {
   Store.subscribe(['gantt', 'tree'], renderProgress);
   Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
   Store.subscribe(['gantt', 'tree', 'header'], NotesPanel.refresh);
+  Store.subscribe(['gantt', 'tree'], () => vscrollRefresh());
 
   wireHeader();
   wireTree();
@@ -173,6 +174,14 @@ function openProjectSettings() {
           <input name="name" value="${escapeHtml(p.name)}" autocomplete="off">
         </div>
         <div class="field">
+          <label>プロジェクト期間(任意・最長3年)</label>
+          <div class="row2" style="display:flex;gap:12px">
+            <div style="flex:1"><input type="date" name="startDate" value="${p.startDate || ''}"></div>
+            <div style="flex:1"><input type="date" name="endDate" value="${p.endDate || ''}"></div>
+          </div>
+          <span class="eg-hint">プロジェクト全体の開始〜終了。ガントの表示範囲に反映されます。</span>
+        </div>
+        <div class="field">
           <label>削除</label>
           <button type="button" class="btn danger" data-del style="width:100%">🗑 このプロジェクトを削除</button>
           <span class="eg-hint">このプロジェクトのスケジュール・マイルストーンなどがすべて消えます(元に戻せません)。</span>
@@ -180,7 +189,7 @@ function openProjectSettings() {
       </div>
       <div class="modal-foot">
         <button type="button" class="btn" data-close>閉じる</button>
-        <button type="submit" class="btn primary">名前を保存</button>
+        <button type="submit" class="btn primary">保存</button>
       </div>
     </form>
   `, {
@@ -195,12 +204,17 @@ function openProjectSettings() {
     onSubmit(form) {
       const name = form.name.value.trim();
       if (!name) { toast('名前を入力してください'); return false; }
-      Projects.rename(name);
+      const startDate = form.startDate.value, endDate = form.endDate.value;
+      if (!periodWithinYears(startDate, endDate, 3)) {
+        toast('プロジェクト期間は最長3年まで(開始が終了より後もNG)です'); return false;
+      }
+      Projects.updateSettings({ name, startDate, endDate });
     }
   });
 }
 
 // ---- スクロール同期 ----
+let vscrollRefresh = () => {};
 function wireScrollSync() {
   const body = document.getElementById('ganttBody');
   const header = document.getElementById('ganttHeader');
@@ -208,15 +222,63 @@ function wireScrollSync() {
   let lock = false;
   body.addEventListener('scroll', () => {
     header.scrollLeft = body.scrollLeft;
-    if (lock) return; lock = true;
-    tree.scrollTop = body.scrollTop;
-    lock = false;
+    if (!lock) { lock = true; tree.scrollTop = body.scrollTop; lock = false; }
+    vscrollRefresh();
   });
   tree.addEventListener('scroll', () => {
-    if (lock) return; lock = true;
-    body.scrollTop = tree.scrollTop;
-    lock = false;
+    if (!lock) { lock = true; body.scrollTop = tree.scrollTop; lock = false; }
+    vscrollRefresh();
   });
+
+  // マウスホイールでガントを左右に移動する(縦ホイール→横スクロール)。
+  // 縦移動は中央の縦スクロールバー、またはスケジュール欄側のホイールで行う。
+  body.addEventListener('wheel', (e) => {
+    if (e.shiftKey || e.deltaY === 0) return; // shift+ホイールは既定(横)に任せる
+    body.scrollLeft += e.deltaY;
+    e.preventDefault();
+  }, { passive: false });
+
+  wireVScroll(body, tree);
+}
+
+// スケジュール欄とガント欄の間の縦スクロールバー(両ペインを上下同期でスクロール)。
+function wireVScroll(body, tree) {
+  const vs = document.getElementById('vscroll');
+  const thumb = document.getElementById('vscrollThumb');
+  function refresh() {
+    const sh = body.scrollHeight, ch = body.clientHeight;
+    if (sh <= ch + 2) { vs.classList.add('hidden'); return; }
+    vs.classList.remove('hidden');
+    const trackH = vs.clientHeight;
+    const thumbH = Math.max(30, trackH * ch / sh);
+    const maxScroll = sh - ch;
+    const top = maxScroll > 0 ? (body.scrollTop / maxScroll) * (trackH - thumbH) : 0;
+    thumb.style.height = thumbH + 'px';
+    thumb.style.transform = `translateY(${top}px)`;
+  }
+  vscrollRefresh = refresh;
+
+  let dragging = false, startY = 0, startScroll = 0;
+  thumb.addEventListener('mousedown', (e) => {
+    dragging = true; startY = e.clientY; startScroll = body.scrollTop;
+    document.body.style.userSelect = 'none'; e.preventDefault();
+  });
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const trackH = vs.clientHeight, thumbH = thumb.offsetHeight;
+    const maxScroll = body.scrollHeight - body.clientHeight;
+    const perPx = (trackH - thumbH) > 0 ? maxScroll / (trackH - thumbH) : 0;
+    body.scrollTop = startScroll + (e.clientY - startY) * perPx; // scroll イベントで tree も同期
+  });
+  document.addEventListener('mouseup', () => { if (dragging) { dragging = false; document.body.style.userSelect = ''; } });
+  vs.addEventListener('mousedown', (e) => {
+    if (e.target === thumb) return;
+    const rect = vs.getBoundingClientRect();
+    const maxScroll = body.scrollHeight - body.clientHeight;
+    body.scrollTop = ((e.clientY - rect.top) / rect.height) * maxScroll;
+  });
+  window.addEventListener('resize', refresh);
+  refresh();
 }
 
 // ---- キーボード ----
@@ -249,6 +311,14 @@ function openNewProjectDialog() {
             <button type="button" data-m="assist" class="on accent">アシスト(初学者向け・緑)</button>
             <button type="button" data-m="normal" class="">ノーマル(経験者向け・青)</button>
           </div>
+        </div>
+        <div class="field">
+          <label>プロジェクト期間(任意・最長3年)</label>
+          <div class="row2" style="display:flex;gap:12px">
+            <div style="flex:1"><input type="date" name="startDate"></div>
+            <div style="flex:1"><input type="date" name="endDate"></div>
+          </div>
+          <span class="eg-hint">プロジェクト全体の開始〜終了。最長3年まで。後から変更できます。</span>
         </div>
         <div class="field">
           <label>テンプレート</label>
@@ -307,7 +377,11 @@ function openNewProjectDialog() {
       const mode = modal.querySelector('.seg').dataset.mode;
       const tpl = form.template.value;
       const notesMd = form.notesMd.value;
-      Projects.create(name, mode, tpl, notesMd);
+      const startDate = form.startDate.value, endDate = form.endDate.value;
+      if (!periodWithinYears(startDate, endDate, 3)) {
+        toast('プロジェクト期間は最長3年まで(開始が終了より後もNG)です'); return false;
+      }
+      Projects.create(name, mode, tpl, notesMd, startDate, endDate);
     }
   });
 }

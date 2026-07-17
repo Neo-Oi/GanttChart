@@ -28,6 +28,12 @@ const Gantt = (() => {
       if (!min || d < min) min = d;
       if (!max || d > max) max = d;
     }
+    // プロジェクト期間もタイムラインに含める(スケジュールが無くても期間全体が見える)。
+    if (state.project) {
+      const ps = parseDate(state.project.startDate), pe = parseDate(state.project.endDate);
+      if (ps && (!min || ps < min)) min = ps;
+      if (pe && (!max || pe > max)) max = pe;
+    }
     const today = todayDate();
     if (!min) { min = addDays(today, -7); max = addDays(today, 30); }
     if (!max || max < min) max = addDays(min, 14);
@@ -72,7 +78,14 @@ const Gantt = (() => {
       } else if (g === 'week') {
         if (d.getDay() === 1) { show = true; major = d.getDate() <= 7; label = major ? `${d.getMonth() + 1}月` : ''; sub = `${d.getMonth() + 1}/${d.getDate()}`; }
       } else if (g === 'month') {
-        if (d.getDate() === 1) { show = true; major = d.getMonth() === 0; label = major ? `${d.getFullYear()}` : ''; sub = `${d.getMonth() + 1}月`; }
+        if (d.getDate() === 1) {
+          show = true;
+          const isQ = d.getMonth() % 3 === 0;  // 四半期の頭(1/4/7/10月)
+          major = isQ;
+          // 月粒度でも四半期(Q)を表示する。四半期頭には Q ラベル、1月は年も。
+          label = isQ ? (d.getMonth() === 0 ? `${d.getFullYear()} Q1` : `Q${Math.floor(d.getMonth() / 3) + 1}`) : '';
+          sub = `${d.getMonth() + 1}月`;
+        }
       } else if (g === 'quarter') {
         if (d.getDate() === 1 && d.getMonth() % 3 === 0) { show = true; major = d.getMonth() === 0; label = major ? `${d.getFullYear()}` : ''; sub = `Q${Math.floor(d.getMonth() / 3) + 1}`; }
       }
@@ -118,6 +131,14 @@ const Gantt = (() => {
       const mx = dateToX(d) + scale.pxPerDay / 2;
       parts.push(`<div class="milestone-line" style="left:${mx}px;height:${totalH}px"></div>`);
     });
+    // プロジェクト期間の開始/終了の境界線(縦線)。
+    if (state.project) {
+      [state.project.startDate, state.project.endDate].forEach(ds => {
+        const pd = parseDate(ds);
+        if (!pd || dayDiff(scale.origin, pd) < 0 || dayDiff(pd, scale.end) < 0) return;
+        parts.push(`<div class="project-line" style="left:${dateToX(pd)}px;height:${totalH}px"></div>`);
+      });
+    }
     return parts.join('');
   }
 
@@ -136,6 +157,16 @@ const Gantt = (() => {
       const mx = dateToX(d) + scale.pxPerDay / 2;
       out.push(`<button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${mx}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`);
     });
+    // プロジェクト期間の開始/終了フラグ
+    if (state.project) {
+      const mk = (ds, txt) => {
+        const pd = parseDate(ds);
+        if (!pd || dayDiff(scale.origin, pd) < 0 || dayDiff(pd, scale.end) < 0) return;
+        out.push(`<div class="project-flag" style="left:${dateToX(pd)}px" title="${txt} (${ds})">${txt}</div>`);
+      };
+      mk(state.project.startDate, '計画開始');
+      mk(state.project.endDate, '計画終了');
+    }
     return out.join('');
   }
 
