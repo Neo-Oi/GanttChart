@@ -192,10 +192,11 @@ const Gantt = (() => {
         const nameDays = `${escapeHtml(n.name)}<span class="bar-days">(${wdays}日)</span>`;
         const titleDays = `${escapeHtml(n.name)}(${wdays}稼働日)`;
         if (r.level === 2) {
-          // タスク(常に葉): ステータス濃淡・最細・ドラッグ可。
+          // タスク(常に葉): ステータス色・最細・ドラッグ可。完了には ✓ を付ける(色覚に依存しない目印)。
           const st = Schedules.effectiveStatus(n);
-          const label = width > 40 ? `<span class="bar-label">${nameDays}</span>` : '';
-          bar = `<div class="bar lv2 ${st}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${titleDays}">
+          const check = st === 'done' ? '✓ ' : '';
+          const label = width > 40 ? `<span class="bar-label">${check}${nameDays}</span>` : '';
+          bar = `<div class="bar lv2 ${st}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${check}${titleDays}">
                    <span class="grip left"></span>${label}<span class="grip right"></span>
                  </div>`;
         } else {
