@@ -143,6 +143,14 @@ const Schedules = (() => {
     const eg = examples(level);
     const n = editing || {};
 
+    // プロジェクトメモ(Markdown)を参考として表示する。書いていなければ何も出さない。
+    const projectNotes = state.project && state.project.notesMd && state.project.notesMd.trim();
+    const notesRef = projectNotes ? `
+      <details class="notes-ref" open>
+        <summary>プロジェクトメモを見る(参考)</summary>
+        <div class="notes-ref-preview md-preview">${renderMarkdownSafe(state.project.notesMd)}</div>
+      </details>` : '';
+
     let start = n.startDate || '';
     let end = n.endDate || '';
     // 新規の子は、初期値として親の日程を受け継ぐ(サブスケジュール←スケジュール等)。
@@ -197,6 +205,7 @@ const Schedules = (() => {
       <div class="modal-head"><h2>${editing ? LEVEL_NAME[level] + 'を編集' : LEVEL_NAME[level] + 'を追加'}</h2></div>
       <form>
         <div class="modal-body">
+          ${notesRef}
           <div class="field">
             <label>${LEVEL_NAME[level]}名</label>
             <input name="name" value="${escapeHtml(n.name || '')}" placeholder="${assist ? '' : LEVEL_NAME[level] + '名'}" autocomplete="off">
