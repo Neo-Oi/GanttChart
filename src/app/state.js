@@ -8,6 +8,7 @@ const state = {
   schedules: [],      // schedule/subschedule/task を統合した木ノード
   milestones: [],
   dependencies: [],
+  notes: [],          // プロジェクトの複数メモ(名前付き Markdown)
   history: [],        // 選択中プロジェクトの historyLog
 };
 
@@ -17,6 +18,7 @@ const uiState = {
   collapsed: {},          // { nodeId: true } 折りたたみ
   granularity: 'day',     // day/week/month/quarter
   undoStack: [],          // 直近のスナップショット(元に戻す用)
+  currentNoteId: null,    // メモパネルで編集中のメモID
 };
 
 const Store = (() => {

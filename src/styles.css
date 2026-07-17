@@ -508,7 +508,8 @@ body[data-mode="normal"] #assistPane { display: none; }
   border-top: 1px solid var(--border); border-radius: 0 0 14px 14px;
 }
 
-.panel-host { justify-content: flex-end; }
+/* サイドパネル(タスク管理・履歴)はメモ(z-index 150)より上に出す。 */
+.panel-host { justify-content: flex-end; z-index: 200; }
 .side-panel {
   width: min(440px, 94vw); height: 100%; background: var(--surface);
   box-shadow: var(--shadow-lg); overflow-y: auto;
@@ -612,37 +613,43 @@ body[data-mode="normal"] #assistPane { display: none; }
 .md-preview code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
 /* ===== プロジェクトメモ: 右端に縦いっぱいドッキングする非モーダルパネル ===== */
-/* モーダル/サイドパネルと違い、背景をブロックしない(バックドロップなし)。
-   「開いたまま他の操作(スケジュール追加・ドラッグなど)ができる」ようにするための設計。
-   #modalHost/#panelHost より前にDOM順で置き、z-indexは付けない
-   → モーダル/サイドパネルを開いたときは、それらが自然に手前に来る。
-   縦幅は画面いっぱい(ヘッダー分だけ空ける)、横幅は中央寄せのモーダル(最大520px)と
-   被らない程度に絞る。横方向だけリサイズ可(縦は常に画面いっぱいのまま)。 */
+/* z-index はモーダル(#modalHost = 100)より上にして、モーダル表示中でもメモを操作できる。
+   左に「メモ一覧(蓄積欄)」、右に編集/プレビュー。横幅は 1.5倍(450px)。 */
 .notes-float {
-  position: fixed; right: 0; top: var(--header-h); bottom: 0;
-  width: 300px; min-width: 240px; max-width: 50vw;
+  position: fixed; right: 0; top: var(--header-h); bottom: 0; z-index: 150;
+  width: 450px; min-width: 320px; max-width: 60vw;
   background: var(--surface); border-left: 1px solid var(--border-strong);
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
   overflow: hidden; resize: horizontal;
 }
 .notes-float.hidden { display: none; }
-.notes-float .panel-body { overflow: hidden; }
 
-/* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう
-   その分だけ本体側に右余白を確保し、パネル幅は固定(横リサイズ不可)にする。 */
+/* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう右余白を確保。 */
 body[data-mode="normal"] #notesBtn { display: none; }
-body[data-mode="normal"] #appBody { padding-right: 300px; }
-body[data-mode="normal"] #progressStrip { padding-right: 316px; }
-body[data-mode="normal"] .notes-float { width: 300px; min-width: 300px; max-width: 300px; resize: none; }
-body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示なので閉じるボタンは隠す */
+body[data-mode="normal"] #appBody { padding-right: 450px; }
+body[data-mode="normal"] #progressStrip { padding-right: 466px; }
+body[data-mode="normal"] .notes-float { width: 450px; min-width: 450px; max-width: 450px; resize: none; }
+body[data-mode="normal"] #notesFloatClose { display: none; }
+
+/* 一覧(左) + 編集(右)の2カラム */
+.notes-cols { flex: 1 1 auto; display: flex; min-height: 0; }
+.notes-list { flex: 0 0 150px; display: flex; flex-direction: column; gap: 6px; padding: 8px; overflow: hidden; background: var(--surface-2); border-right: 1px solid var(--border); }
+.notes-add { height: 30px; font-size: 12px; flex: 0 0 auto; }
+.notes-items { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
+.notes-item { text-align: left; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-item:hover { border-color: var(--border-strong); }
+.notes-item.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 700; }
+.notes-empty { color: var(--text-faint); font-size: 12px; margin: 4px 2px; }
+
+.notes-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; min-width: 0; }
+.notes-name { height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--text); }
+.notes-name:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* 編集/プレビューのタブ */
-.notes-tabs { display: inline-flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+.notes-tabs { display: inline-flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; align-self: flex-start; }
 .notes-tab { border: 0; background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 600; padding: 5px 16px; border-radius: 999px; }
 .notes-tab.on { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
 
-.notes-body { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
-/* タブ切替で片方だけ表示するため、それぞれ全面を占める。 */
 .notes-editor {
   width: 100%; flex: 1 1 auto; min-height: 70px; resize: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6;
@@ -652,7 +659,7 @@ body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示な�
 .notes-editor-sm { flex: none; min-height: 90px; resize: vertical; }
 .notes-preview { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .notes-preview-empty { color: var(--text-faint); font-size: 12px; margin: 0; }
-.notes-foot { display: flex; gap: 8px; flex-wrap: wrap; }
+.notes-foot { display: flex; gap: 6px; flex-wrap: wrap; }
 .notes-import-row { margin-top: 8px; }
 
 /* ===== スケジュール/サブスケジュール/タスク編集モーダル内の「メモを見る」参考ブロック ===== */

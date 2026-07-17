@@ -14,17 +14,27 @@ const Projects = (() => {
   async function select(projectId) {
     const project = await DB.get('projects', projectId);
     if (!project) return;
-    const [schedules, milestones, dependencies, history] = await Promise.all([
+    const [schedules, milestones, dependencies, notes, history] = await Promise.all([
       DB.getAllByProject('schedules', projectId),
       DB.getAllByProject('milestones', projectId),
       DB.getAllByProject('dependencies', projectId),
+      DB.getAllByProject('notes', projectId),
       DB.getAllByProject('historyLog', projectId),
     ]);
     history.sort((a, b) => b.at - a.at);
+    notes.sort((a, b) => (a.order || 0) - (b.order || 0));
+    // 旧・単一メモ(project.notesMd)が残っていれば、複数メモの1件目として移行する。
+    if (!notes.length && project.notesMd && project.notesMd.trim()) {
+      const migrated = { id: uid('n'), projectId, name: 'メモ', body: project.notesMd, order: 0, updatedAt: Date.now() };
+      await DB.put('notes', migrated);
+      notes.push(migrated);
+      await DB.put('projects', { ...project, notesMd: '' });
+      project.notesMd = '';
+    }
     await DB.setMeta('currentProjectId', projectId);
     document.body.dataset.mode = project.mode || 'assist';
-    Store.setUiState({ selectedId: null, undoStack: [] }, []);
-    Store.setState({ project, schedules, milestones, dependencies, history }, []);
+    Store.setUiState({ selectedId: null, undoStack: [], currentNoteId: notes.length ? notes[0].id : null }, []);
+    Store.setState({ project, schedules, milestones, dependencies, notes, history }, []);
     Store.renderAll();
   }
 

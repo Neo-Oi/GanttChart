@@ -1,89 +1,150 @@
 // ==== app/notes.js ====
-// プロジェクトメモ(Markdown)。タスクの洗い出し・下書き用。
-// 「開いたまま作業したい」という要望から、モーダル/サイドパネル(#modalHost/#panelHost、
-// 背景をブロックする全画面オーバーレイ)は使わず、右下にドッキングする非モーダルな
-// 浮遊パネル(#notesFloatHost)として実装する。開いている間も、ツリー/ガント/他のモーダルは
-// 通常どおり操作できる。
-// 履歴(history.js)の追跡対象外(CLAUDE.md の HISTORY_DOMAINS 参照)。
+// プロジェクトメモ(複数・名前付きの Markdown)。タスクの洗い出し・下書き用。
+// 右下ドッキングの非モーダル浮遊パネル。モーダル表示中でも操作できるよう z-index はモーダルより上。
+// 左に「メモ一覧(蓄積欄)」、右に編集/プレビュー。メモ名は変更可能。
+// メモは `notes` ストアに保存(履歴追跡の対象外)。
 
 const NotesPanel = (() => {
-  // 直近にこのプロジェクトIDで中身を組み立てたかを覚えておく。
-  // 他の操作(スケジュール追加など)による全体再描画のたびに中身を作り直すと、
-  // 開いたまま入力中の未保存テキストが消えてしまうため、
-  // 「プロジェクトが変わった/初めて開いた」ときだけ組み立て直す。
   let builtForProjectId = null;
 
   function host() { return document.getElementById('notesFloatHost'); }
+  function notes() { return state.notes; }
+  function current() {
+    return notes().find(n => n.id === uiState.currentNoteId) || notes()[0] || null;
+  }
+
+  async function persist(note) {
+    note.updatedAt = Date.now();
+    await DB.put('notes', note);
+  }
 
   function build() {
     const h = host();
-    const md = state.project.notesMd || '';
+    if (!current() && notes().length) uiState.currentNoteId = notes()[0].id;
     h.innerHTML = `
       <div class="panel-head">
         <h2>プロジェクトメモ</h2>
         <button class="icon-btn" id="notesFloatClose" title="閉じる(内容は保持されます)">✕</button>
       </div>
-      <div class="panel-sub">
-        <div class="notes-tabs">
-          <button type="button" class="notes-tab on" data-nt="edit">編集</button>
-          <button type="button" class="notes-tab" data-nt="preview">プレビュー</button>
-        </div>
+      <div class="notes-cols">
+        <div class="notes-list" id="notesList"></div>
+        <div class="notes-main" id="notesMain"></div>
+      </div>`;
+    h.querySelector('#notesFloatClose').onclick = close;
+    // 一覧はクリック委譲(一度だけ)。
+    h.querySelector('#notesList').addEventListener('click', (e) => {
+      const add = e.target.closest('[data-addnote]');
+      if (add) { addNote(); return; }
+      const item = e.target.closest('[data-note]');
+      if (item) selectNote(item.dataset.note);
+    });
+    renderList();
+    renderMain();
+    builtForProjectId = state.project.id;
+  }
+
+  function renderList() {
+    const list = host().querySelector('#notesList');
+    if (!list) return;
+    const cur = current();
+    list.innerHTML = `
+      <button type="button" class="btn notes-add" data-addnote>＋ 新規メモ</button>
+      <div class="notes-items">
+        ${notes().map(n => `
+          <button type="button" class="notes-item ${cur && n.id === cur.id ? 'on' : ''}" data-note="${n.id}" title="${escapeHtml(n.name)}">
+            ${escapeHtml(n.name || '(無題)')}
+          </button>`).join('') || '<p class="notes-empty">メモがありません</p>'}
+      </div>`;
+  }
+
+  function renderMain() {
+    const main = host().querySelector('#notesMain');
+    if (!main) return;
+    const cur = current();
+    if (!cur) {
+      main.innerHTML = `<p class="notes-empty" style="padding:20px">「＋ 新規メモ」でメモを作成しましょう。</p>`;
+      return;
+    }
+    main.innerHTML = `
+      <input class="notes-name" id="notesName" value="${escapeHtml(cur.name || '')}" placeholder="メモ名" autocomplete="off">
+      <div class="notes-tabs">
+        <button type="button" class="notes-tab on" data-nt="edit">編集</button>
+        <button type="button" class="notes-tab" data-nt="preview">プレビュー</button>
       </div>
-      <div class="panel-body notes-body">
-        <textarea id="notesEditor" class="notes-editor" placeholder="タスクの洗い出し・下書きに。Markdown記法(見出し #、箇条書き -、チェックリスト - [ ]、太字 **）が使えます。">${escapeHtml(md)}</textarea>
-        <div class="notes-preview md-preview" id="notesPreview" hidden></div>
-      </div>
-      <div class="panel-foot notes-foot">
-        <button type="button" class="btn" id="notesImportBtn">📄 読み込む</button>
-        <button type="button" class="btn" id="notesExportBtn">📄 書き出す</button>
+      <textarea id="notesEditor" class="notes-editor" placeholder="Markdown(# 見出し / - 箇条書き / - [ ] チェック / **太字**)">${escapeHtml(cur.body || '')}</textarea>
+      <div class="notes-preview md-preview" id="notesPreview" hidden></div>
+      <div class="notes-foot">
+        <button type="button" class="btn" id="notesImportBtn">📄 読込</button>
+        <button type="button" class="btn" id="notesExportBtn">📄 書出</button>
+        <button type="button" class="btn danger" id="notesDelBtn">削除</button>
         <button type="button" class="btn primary" id="notesSaveBtn">保存</button>
         <input type="file" accept=".md,text/markdown" id="notesFileInput" hidden>
       </div>`;
 
-    const ta = h.querySelector('#notesEditor');
-    const preview = h.querySelector('#notesPreview');
-    const update = () => {
-      const html = renderMarkdownSafe(ta.value);
-      preview.innerHTML = html || '<p class="notes-preview-empty">まだ何も書かれていません。</p>';
+    const nameIn = main.querySelector('#notesName');
+    const ta = main.querySelector('#notesEditor');
+    const preview = main.querySelector('#notesPreview');
+    const updatePreview = () => {
+      preview.innerHTML = renderMarkdownSafe(ta.value) || '<p class="notes-preview-empty">まだ何も書かれていません。</p>';
     };
+    // 入力は即メモ(メモリ)へ反映し、切替・保存時に永続化。
+    nameIn.oninput = () => { cur.name = nameIn.value; };
+    nameIn.onchange = () => { persist(cur); renderList(); };
+    ta.oninput = () => { cur.body = ta.value; };
 
-    // 編集/プレビューのタブ切替(インライン式: 同じ場所に片方だけ表示)。
-    const tabs = h.querySelectorAll('.notes-tab');
-    const showTab = (which) => {
-      tabs.forEach(t => t.classList.toggle('on', t.dataset.nt === which));
-      const isEdit = which === 'edit';
-      ta.hidden = !isEdit;
-      preview.hidden = isEdit;
-      if (!isEdit) update();
-    };
-    tabs.forEach(t => t.onclick = () => showTab(t.dataset.nt));
+    const tabs = main.querySelectorAll('.notes-tab');
+    tabs.forEach(t => t.onclick = () => {
+      tabs.forEach(x => x.classList.toggle('on', x === t));
+      const isEdit = t.dataset.nt === 'edit';
+      ta.hidden = !isEdit; preview.hidden = isEdit;
+      if (!isEdit) updatePreview();
+    });
 
-    h.querySelector('#notesFloatClose').onclick = close;
-
-    const fileInput = h.querySelector('#notesFileInput');
-    h.querySelector('#notesImportBtn').onclick = () => fileInput.click();
+    const fileInput = main.querySelector('#notesFileInput');
+    main.querySelector('#notesImportBtn').onclick = () => fileInput.click();
     fileInput.onchange = () => {
-      const f = fileInput.files[0];
-      if (!f) return;
+      const f = fileInput.files[0]; if (!f) return;
       const reader = new FileReader();
-      reader.onload = () => { ta.value = reader.result; update(); };
+      reader.onload = () => { ta.value = reader.result; cur.body = reader.result; };
       reader.readAsText(f);
     };
-    h.querySelector('#notesExportBtn').onclick = () => {
+    main.querySelector('#notesExportBtn').onclick = () => {
       const blob = new Blob([ta.value], { type: 'text/markdown' });
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${state.project.name || 'notes'}.md`;
-      a.click();
+      const a = document.createElement('a'); a.href = url; a.download = `${cur.name || 'memo'}.md`; a.click();
       URL.revokeObjectURL(url);
     };
-    h.querySelector('#notesSaveBtn').onclick = async () => {
-      await Projects.updateNotes(ta.value);
-      toast('メモを保存しました');
-    };
+    main.querySelector('#notesSaveBtn').onclick = async () => { await persist(cur); renderList(); toast('メモを保存しました'); };
+    main.querySelector('#notesDelBtn').onclick = () => deleteNote(cur.id);
+  }
 
-    builtForProjectId = state.project.id;
+  // いずれも「UIを先に更新 → 永続化は後」にして、保存が失敗/遅延しても表示が固まらないようにする。
+  async function addNote() {
+    const prev = current();
+    const note = { id: uid('n'), projectId: state.project.id, name: `メモ${notes().length + 1}`, body: '', order: notes().length, updatedAt: Date.now() };
+    state.notes.push(note);
+    uiState.currentNoteId = note.id;
+    renderList(); renderMain();
+    if (prev) await persist(prev);
+    await DB.put('notes', note);
+  }
+
+  async function selectNote(id) {
+    const prev = current();
+    uiState.currentNoteId = id;
+    renderList(); renderMain();
+    if (prev && prev.id !== id) await persist(prev); // 切替前のメモを保存
+  }
+
+  async function deleteNote(id) {
+    const note = state.notes.find(n => n.id === id);
+    if (!note) return;
+    const ok = await UI.confirm(`メモ「${note.name}」を削除します。よろしいですか?`, { danger: true, okLabel: '削除' });
+    if (!ok) return;
+    state.notes = state.notes.filter(n => n.id !== id);
+    if (uiState.currentNoteId === id) uiState.currentNoteId = state.notes.length ? state.notes[0].id : null;
+    renderList(); renderMain();
+    await DB.remove('notes', id);
   }
 
   function open() {
@@ -91,26 +152,16 @@ const NotesPanel = (() => {
     if (builtForProjectId !== state.project.id) build();
     host().classList.remove('hidden');
   }
+  function close() { host().classList.add('hidden'); }
+  function toggle() { host().classList.contains('hidden') ? open() : close(); }
 
-  function close() {
-    host().classList.add('hidden');
-  }
-
-  function toggle() {
-    if (host().classList.contains('hidden')) open();
-    else close();
-  }
-
-  // 他の操作による全体再描画に追随する。
-  // ノーマルモードでは常時表示(自動で開く)。アシストモードでは、開いているときだけ内容を追随
-  // (閉じているなら未保存テキストを壊さないよう何もしない)。
-  // どちらも、プロジェクトが切り替わったときだけ中身を作り直す。
+  // 再レンダリング追随。ノーマルは常時表示。プロジェクトが変わったときだけ作り直す。
   function refresh() {
     if (!state.project) { builtForProjectId = null; return; }
     const normal = document.body.dataset.mode === 'normal';
     if (normal) {
       if (builtForProjectId !== state.project.id) build();
-      host().classList.remove('hidden');   // ノーマルは常に表示
+      host().classList.remove('hidden');
       return;
     }
     if (host().classList.contains('hidden')) return;
