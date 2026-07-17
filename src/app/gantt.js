@@ -308,8 +308,10 @@ const Gantt = (() => {
           Schedules.updateDates(id, p.start, p.end);
         }
       } else {
-        // 変化なし(またはスナップで元に戻った)ときは、日付グリッドの位置に戻す。
+        // ドラッグせずクリックしただけ → そのバーの編集画面を直接開く。
+        // (見た目が微小にずれている場合に備え、先にグリッド位置へ描き直す。)
         renderGantt();
+        Schedules.openEditor({ id: id });
       }
     }
     document.addEventListener('mousemove', onMove);

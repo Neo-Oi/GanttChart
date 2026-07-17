@@ -31,7 +31,8 @@ function renderHeader() {
   sel.innerHTML = state.projects.map(p =>
     `<option value="${p.id}" ${state.project && p.id === state.project.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
   ).join('');
-  document.getElementById('granularitySelect').value = uiState.granularity;
+  document.querySelectorAll('#granularityToggle .seg-opt').forEach(b =>
+    b.classList.toggle('on', b.dataset.gran === uiState.granularity));
   document.getElementById('undoBtn').disabled = !History.canUndo();
 }
 
@@ -75,8 +76,10 @@ function wireHeader() {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);
   };
-  document.getElementById('granularitySelect').onchange = (e) => {
-    Store.setUiState({ granularity: e.target.value }, []);
+  document.getElementById('granularityToggle').onclick = (e) => {
+    const btn = e.target.closest('[data-gran]');
+    if (!btn) return;
+    Store.setUiState({ granularity: btn.dataset.gran }, ['header']);
     Gantt.renderGantt();
   };
   document.getElementById('addScheduleBtn').onclick = () => Schedules.openEditor({ parentId: null, level: 0 });
@@ -136,10 +139,7 @@ function wireGantt() {
     const row = e.target.closest('[data-row]');
     if (row && !e.target.closest('.bar')) selectNode(row.dataset.row);
   });
-  body.addEventListener('dblclick', (e) => {
-    const bar = e.target.closest('.bar[data-bar]');
-    if (bar) Schedules.openEditor({ id: bar.dataset.bar });
-  });
+  // バーはクリック(ドラッグせず)で編集画面が開く(Gantt.beginDrag の onUp 内で処理)。
   // マイルストーンの旗はヘッダー(#ganttHeader)に移動したので、こちらでもクリックを拾う。
   document.getElementById('ganttHeader').addEventListener('click', (e) => {
     const ms = e.target.closest('[data-ms]');

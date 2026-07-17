@@ -13,6 +13,11 @@ const ExportImport = (() => {
           <span class="eg-hint">ブラウザの印刷ダイアログから「PDFに保存」を選べます。上司・チームへの共有に。</span>
         </div>
         <div class="field">
+          <label>表計算用(Excel で開ける)</label>
+          <button type="button" class="btn" data-act="excel" style="width:100%">📊 Excel形式(CSV)で書き出す</button>
+          <span class="eg-hint">スケジュール一覧を表として書き出します。Excel でそのまま開けます(UTF-8)。</span>
+        </div>
+        <div class="field">
           <label>バックアップ用(このプロジェクトのデータ全体)</label>
           <button type="button" class="btn" data-act="json-out" style="width:100%;margin-bottom:8px">⬇ JSONファイルに書き出す</button>
           <button type="button" class="btn" data-act="json-in" style="width:100%">⬆ JSONファイルから読み込む(新規プロジェクトとして)</button>
@@ -25,11 +30,48 @@ const ExportImport = (() => {
       onOpen(modal) {
         const fileIn = modal.querySelector('[data-file]');
         modal.querySelector('[data-act="print"]').onclick = () => { window.print(); };
+        modal.querySelector('[data-act="excel"]').onclick = () => exportExcel();
         modal.querySelector('[data-act="json-out"]').onclick = () => exportJson();
         modal.querySelector('[data-act="json-in"]').onclick = () => fileIn.click();
         fileIn.onchange = () => { if (fileIn.files[0]) importJson(fileIn.files[0]); };
       }
     });
+  }
+
+  function _csvCell(v) {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  // Excel で開ける CSV(UTF-8 BOM 付き)。スケジュール一覧を表として書き出す。
+  function exportExcel() {
+    if (!state.project) return;
+    const nums = Schedules.computeNumbering();
+    const rows = [['番号', '階層', '名称', '開始日', '終了日', '稼働日数', '状態', '担当者', 'メモ']];
+    (function walk(parentId, depth) {
+      for (const n of Schedules.childrenOf(parentId)) {
+        const sp = Schedules.effectiveSpan(n);
+        const st = Schedules.statusLabel(Schedules.effectiveStatus(n));
+        const wd = sp ? Holidays.countWorkingDays(sp.start, sp.end) : '';
+        rows.push([nums[n.id] || '', Schedules.LEVEL_NAME[depth] || '', n.name || '',
+          sp ? fmtDate(sp.start) : '', sp ? fmtDate(sp.end) : '', wd, st, n.assignee || '', n.note || '']);
+        walk(n.id, depth + 1);
+      }
+    })(null, 0);
+    if (state.milestones.length) {
+      rows.push([]);
+      rows.push(['マイルストーン', '日付']);
+      for (const m of state.milestones) rows.push([m.name || '', m.date || '']);
+    }
+    const csv = '﻿' + rows.map(r => r.map(_csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${state.project.name || 'gantt'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Excel形式(CSV)で書き出しました');
   }
 
   function exportJson() {
@@ -83,5 +125,5 @@ const ExportImport = (() => {
     toast('読み込みました');
   }
 
-  return { openMenu, exportJson, importJson };
+  return { openMenu, exportJson, exportExcel, importJson };
 })();

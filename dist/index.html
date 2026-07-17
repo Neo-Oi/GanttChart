@@ -168,6 +168,17 @@ body[data-mode="normal"] .mode-opt[data-mode="normal"] {
   box-shadow: var(--shadow-sm);
 }
 
+/* 横並びの選択トグル(表示粒度など) */
+.seg-toggle {
+  display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+}
+.seg-opt {
+  border: 0; background: transparent; color: var(--text-muted);
+  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; transition: all .14s;
+}
+.seg-opt.on { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
+
 /* ===== 本体レイアウト ===== */
 #appBody { flex: 1 1 auto; display: flex; min-height: 0; }
 .pane { min-height: 0; background: var(--surface); }
@@ -596,7 +607,7 @@ body[data-mode="normal"] #assistPane { display: none; }
    被らない程度に絞る。横方向だけリサイズ可(縦は常に画面いっぱいのまま)。 */
 .notes-float {
   position: fixed; right: 0; top: var(--header-h); bottom: 0;
-  width: 600px; min-width: 360px; max-width: 70vw;
+  width: 300px; min-width: 240px; max-width: 50vw;
   background: var(--surface); border-left: 1px solid var(--border-strong);
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
   overflow: hidden; resize: horizontal;
@@ -607,20 +618,26 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう
    その分だけ本体側に右余白を確保し、パネル幅は固定(横リサイズ不可)にする。 */
 body[data-mode="normal"] #notesBtn { display: none; }
-body[data-mode="normal"] #appBody { padding-right: 600px; }
-body[data-mode="normal"] #progressStrip { padding-right: 616px; }
-body[data-mode="normal"] .notes-float { width: 600px; min-width: 600px; max-width: 600px; resize: none; }
+body[data-mode="normal"] #appBody { padding-right: 300px; }
+body[data-mode="normal"] #progressStrip { padding-right: 316px; }
+body[data-mode="normal"] .notes-float { width: 300px; min-width: 300px; max-width: 300px; resize: none; }
 body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示なので閉じるボタンは隠す */
 
+/* 編集/プレビューのタブ */
+.notes-tabs { display: inline-flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+.notes-tab { border: 0; background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 600; padding: 5px 16px; border-radius: 999px; }
+.notes-tab.on { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
+
 .notes-body { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+/* タブ切替で片方だけ表示するため、それぞれ全面を占める。 */
 .notes-editor {
-  width: 100%; flex: 1 1 45%; min-height: 70px; resize: none;
+  width: 100%; flex: 1 1 auto; min-height: 70px; resize: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6;
   padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text);
 }
 .notes-editor:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .notes-editor-sm { flex: none; min-height: 90px; resize: vertical; }
-.notes-preview { flex: 1 1 45%; min-height: 0; overflow-y: auto; border-top: 1px dashed var(--border); padding-top: 10px; }
+.notes-preview { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .notes-preview-empty { color: var(--text-faint); font-size: 12px; margin: 0; }
 .notes-foot { display: flex; gap: 8px; flex-wrap: wrap; }
 .notes-import-row { margin-top: 8px; }
@@ -682,12 +699,12 @@ body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示な�
       </div>
       <div class="hd-right">
         <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ マイルストーン</button>
-        <select id="granularitySelect" class="hd-select" title="表示粒度">
-          <option value="day">日</option>
-          <option value="week">週</option>
-          <option value="month">月</option>
-          <option value="quarter">四半期</option>
-        </select>
+        <div id="granularityToggle" class="seg-toggle" title="表示粒度">
+          <button data-gran="day" class="seg-opt">日</button>
+          <button data-gran="week" class="seg-opt">週</button>
+          <button data-gran="month" class="seg-opt">月</button>
+          <button data-gran="quarter" class="seg-opt">四半期</button>
+        </div>
         <button id="undoBtn" class="hd-btn" title="元に戻す (Ctrl+Z)" disabled>↶ 元に戻す</button>
         <button id="historyBtn" class="hd-btn" title="変更履歴">履歴</button>
         <button id="exportBtn" class="hd-btn" title="エクスポート / バックアップ">出力</button>
@@ -1014,7 +1031,7 @@ const DB = (() => {
 
   const HISTORY_MAX = 80; // 履歴(スナップショット付き)の保持件数の上限
 
-  function _log(projectId, meta) {
+  async function _log(projectId, meta) {
     const entry = {
       id: uid('h'),
       projectId,
@@ -1029,9 +1046,9 @@ const DB = (() => {
         dependencies: (state.dependencies || []).map(x => ({ ...x })),
       },
     };
-    reqP(tx('historyLog', 'readwrite').put(entry));
+    await reqP(tx('historyLog', 'readwrite').put(entry));
     // 上限を超えた古い履歴を間引く(スナップショット付きで肥大化するため)。
-    return _pruneHistory(projectId);
+    await _pruneHistory(projectId);
   }
 
   async function _pruneHistory(projectId) {
@@ -1316,11 +1333,14 @@ const NotesPanel = (() => {
         <button class="icon-btn" id="notesFloatClose" title="閉じる(内容は保持されます)">✕</button>
       </div>
       <div class="panel-sub">
-        <div class="tp-hint">タスクの洗い出し・下書きに。開いたまま他の操作ができます。スケジュール/サブスケジュール/タスクの追加・編集画面からも参照できます。</div>
+        <div class="notes-tabs">
+          <button type="button" class="notes-tab on" data-nt="edit">編集</button>
+          <button type="button" class="notes-tab" data-nt="preview">プレビュー</button>
+        </div>
       </div>
       <div class="panel-body notes-body">
-        <textarea id="notesEditor" class="notes-editor">${escapeHtml(md)}</textarea>
-        <div class="notes-preview md-preview" id="notesPreview"></div>
+        <textarea id="notesEditor" class="notes-editor" placeholder="タスクの洗い出し・下書きに。Markdown記法(見出し #、箇条書き -、チェックリスト - [ ]、太字 **）が使えます。">${escapeHtml(md)}</textarea>
+        <div class="notes-preview md-preview" id="notesPreview" hidden></div>
       </div>
       <div class="panel-foot notes-foot">
         <button type="button" class="btn" id="notesImportBtn">📄 読み込む</button>
@@ -1333,10 +1353,19 @@ const NotesPanel = (() => {
     const preview = h.querySelector('#notesPreview');
     const update = () => {
       const html = renderMarkdownSafe(ta.value);
-      preview.innerHTML = html || '<p class="notes-preview-empty">ここにプレビューが表示されます。</p>';
+      preview.innerHTML = html || '<p class="notes-preview-empty">まだ何も書かれていません。</p>';
     };
-    update();
-    ta.addEventListener('input', update);
+
+    // 編集/プレビューのタブ切替(インライン式: 同じ場所に片方だけ表示)。
+    const tabs = h.querySelectorAll('.notes-tab');
+    const showTab = (which) => {
+      tabs.forEach(t => t.classList.toggle('on', t.dataset.nt === which));
+      const isEdit = which === 'edit';
+      ta.hidden = !isEdit;
+      preview.hidden = isEdit;
+      if (!isEdit) update();
+    };
+    tabs.forEach(t => t.onclick = () => showTab(t.dataset.nt));
 
     h.querySelector('#notesFloatClose').onclick = close;
 
@@ -1614,6 +1643,26 @@ const Schedules = (() => {
       <div class="field"><label>終了日(自動計算 / 直接入力可)</label><input type="date" name="endDate" value="${end}">${egHint('土日・祝日を除いて計算します')}</div>
     ` : `<div class="field"><label>期間</label><p style="font-size:12px;color:var(--text-muted);margin:0">子の期間から自動で決まります。</p></div>`;
 
+    // 親(どのスケジュール/サブスケジュールに属するか)を選べるようにする。追加時の選択にも、
+    // 編集時の別の親への付け替えにも使える。
+    let parentField = '';
+    if (level >= 1) {
+      const pnums = computeNumbering();
+      const candidates = state.schedules
+        .filter(x => levelOf(x) === level - 1)
+        .sort((a, b) => String(pnums[a.id] || '').localeCompare(String(pnums[b.id] || ''), undefined, { numeric: true }));
+      if (candidates.length) {
+        const optsHtml = candidates.map(c =>
+          `<option value="${c.id}" ${c.id === parentId ? 'selected' : ''}>${pnums[c.id]} ${escapeHtml(c.name)}</option>`).join('');
+        parentField = `<div class="field"><label>所属する${LEVEL_NAME[level - 1]}</label>
+          <select name="parentId">${optsHtml}</select>
+          ${egHint('別の' + LEVEL_NAME[level - 1] + 'に付け替えられます')}</div>`;
+      } else {
+        parentField = `<div class="field"><label>所属する${LEVEL_NAME[level - 1]}</label>
+          <p style="font-size:12px;color:#dc2626;margin:0">先に${LEVEL_NAME[level - 1]}を作成してください。</p></div>`;
+      }
+    }
+
     UI.openModal(`
       <div class="modal-head"><h2>${editing ? LEVEL_NAME[level] + 'を編集' : LEVEL_NAME[level] + 'を追加'}</h2></div>
       <form>
@@ -1624,6 +1673,7 @@ const Schedules = (() => {
             <input name="name" value="${escapeHtml(n.name || '')}" placeholder="${assist ? '' : LEVEL_NAME[level] + '名'}" autocomplete="off">
             ${egHint('例: ' + eg.name)}
           </div>
+          ${parentField}
           ${dateFields}
           <div class="field">
             <label>担当者</label>
@@ -1683,12 +1733,17 @@ const Schedules = (() => {
           status,
           note: form.note.value.trim(),
         };
+        // 選択された親(未選択時は元の parentId のまま)。
+        const chosenParent = form.parentId ? form.parentId.value : parentId;
+        if (level >= 1 && form.querySelector('[name=parentId]') === null && !parentId) {
+          toast(`先に${LEVEL_NAME[level - 1]}を作成してください`); return false;
+        }
         if (editing) {
           const predIds = isLeaf
             ? Array.from(form.querySelectorAll('input[name=pred]:checked')).map(i => i.value)
             : null;
-          saveNode(editing.id, data, predIds);
-        } else add(parentId, level, data);
+          saveNode(editing.id, data, predIds, chosenParent);
+        } else add(chosenParent, level, data);
       }
     });
   }
@@ -1722,11 +1777,18 @@ const Schedules = (() => {
     return parts;
   }
 
-  async function saveNode(id, data, predIds) {
+  async function saveNode(id, data, predIds, newParentId) {
     History.snapshot();
     const node = byId(id);
     const changes = describeChanges(node, data);
     Object.assign(node, data);
+    // 親の付け替え(別のスケジュール/サブスケジュールへ移動)。
+    if (newParentId !== undefined && newParentId !== node.parentId) {
+      const oldParent = byId(node.parentId), newParent = byId(newParentId);
+      node.parentId = newParentId || null;
+      node.order = childrenOf(newParentId).filter(c => c.id !== id).length; // 末尾に付ける
+      changes.push(`所属 ${oldParent ? '「' + oldParent.name + '」' : '(なし)'} → ${newParent ? '「' + newParent.name + '」' : '(なし)'}`);
+    }
     const label = changes.length ? `「${node.name}」: ${changes.join(' / ')}` : `「${node.name}」を編集`;
     await DB.put('schedules', node, { action: 'edit', label });
     await Projects.touch();
@@ -2390,8 +2452,10 @@ const Gantt = (() => {
           Schedules.updateDates(id, p.start, p.end);
         }
       } else {
-        // 変化なし(またはスナップで元に戻った)ときは、日付グリッドの位置に戻す。
+        // ドラッグせずクリックしただけ → そのバーの編集画面を直接開く。
+        // (見た目が微小にずれている場合に備え、先にグリッド位置へ描き直す。)
         renderGantt();
+        Schedules.openEditor({ id: id });
       }
     }
     document.addEventListener('mousemove', onMove);
@@ -2543,6 +2607,11 @@ const ExportImport = (() => {
           <span class="eg-hint">ブラウザの印刷ダイアログから「PDFに保存」を選べます。上司・チームへの共有に。</span>
         </div>
         <div class="field">
+          <label>表計算用(Excel で開ける)</label>
+          <button type="button" class="btn" data-act="excel" style="width:100%">📊 Excel形式(CSV)で書き出す</button>
+          <span class="eg-hint">スケジュール一覧を表として書き出します。Excel でそのまま開けます(UTF-8)。</span>
+        </div>
+        <div class="field">
           <label>バックアップ用(このプロジェクトのデータ全体)</label>
           <button type="button" class="btn" data-act="json-out" style="width:100%;margin-bottom:8px">⬇ JSONファイルに書き出す</button>
           <button type="button" class="btn" data-act="json-in" style="width:100%">⬆ JSONファイルから読み込む(新規プロジェクトとして)</button>
@@ -2555,11 +2624,48 @@ const ExportImport = (() => {
       onOpen(modal) {
         const fileIn = modal.querySelector('[data-file]');
         modal.querySelector('[data-act="print"]').onclick = () => { window.print(); };
+        modal.querySelector('[data-act="excel"]').onclick = () => exportExcel();
         modal.querySelector('[data-act="json-out"]').onclick = () => exportJson();
         modal.querySelector('[data-act="json-in"]').onclick = () => fileIn.click();
         fileIn.onchange = () => { if (fileIn.files[0]) importJson(fileIn.files[0]); };
       }
     });
+  }
+
+  function _csvCell(v) {
+    const s = String(v == null ? '' : v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  // Excel で開ける CSV(UTF-8 BOM 付き)。スケジュール一覧を表として書き出す。
+  function exportExcel() {
+    if (!state.project) return;
+    const nums = Schedules.computeNumbering();
+    const rows = [['番号', '階層', '名称', '開始日', '終了日', '稼働日数', '状態', '担当者', 'メモ']];
+    (function walk(parentId, depth) {
+      for (const n of Schedules.childrenOf(parentId)) {
+        const sp = Schedules.effectiveSpan(n);
+        const st = Schedules.statusLabel(Schedules.effectiveStatus(n));
+        const wd = sp ? Holidays.countWorkingDays(sp.start, sp.end) : '';
+        rows.push([nums[n.id] || '', Schedules.LEVEL_NAME[depth] || '', n.name || '',
+          sp ? fmtDate(sp.start) : '', sp ? fmtDate(sp.end) : '', wd, st, n.assignee || '', n.note || '']);
+        walk(n.id, depth + 1);
+      }
+    })(null, 0);
+    if (state.milestones.length) {
+      rows.push([]);
+      rows.push(['マイルストーン', '日付']);
+      for (const m of state.milestones) rows.push([m.name || '', m.date || '']);
+    }
+    const csv = '﻿' + rows.map(r => r.map(_csvCell).join(',')).join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${state.project.name || 'gantt'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Excel形式(CSV)で書き出しました');
   }
 
   function exportJson() {
@@ -2613,7 +2719,7 @@ const ExportImport = (() => {
     toast('読み込みました');
   }
 
-  return { openMenu, exportJson, importJson };
+  return { openMenu, exportJson, exportExcel, importJson };
 })();
 
 
@@ -2772,7 +2878,8 @@ function renderHeader() {
   sel.innerHTML = state.projects.map(p =>
     `<option value="${p.id}" ${state.project && p.id === state.project.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
   ).join('');
-  document.getElementById('granularitySelect').value = uiState.granularity;
+  document.querySelectorAll('#granularityToggle .seg-opt').forEach(b =>
+    b.classList.toggle('on', b.dataset.gran === uiState.granularity));
   document.getElementById('undoBtn').disabled = !History.canUndo();
 }
 
@@ -2816,8 +2923,10 @@ function wireHeader() {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);
   };
-  document.getElementById('granularitySelect').onchange = (e) => {
-    Store.setUiState({ granularity: e.target.value }, []);
+  document.getElementById('granularityToggle').onclick = (e) => {
+    const btn = e.target.closest('[data-gran]');
+    if (!btn) return;
+    Store.setUiState({ granularity: btn.dataset.gran }, ['header']);
     Gantt.renderGantt();
   };
   document.getElementById('addScheduleBtn').onclick = () => Schedules.openEditor({ parentId: null, level: 0 });
@@ -2877,10 +2986,7 @@ function wireGantt() {
     const row = e.target.closest('[data-row]');
     if (row && !e.target.closest('.bar')) selectNode(row.dataset.row);
   });
-  body.addEventListener('dblclick', (e) => {
-    const bar = e.target.closest('.bar[data-bar]');
-    if (bar) Schedules.openEditor({ id: bar.dataset.bar });
-  });
+  // バーはクリック(ドラッグせず)で編集画面が開く(Gantt.beginDrag の onUp 内で処理)。
   // マイルストーンの旗はヘッダー(#ganttHeader)に移動したので、こちらでもクリックを拾う。
   document.getElementById('ganttHeader').addEventListener('click', (e) => {
     const ms = e.target.closest('[data-ms]');
