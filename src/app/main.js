@@ -159,7 +159,9 @@ function selectNode(id) {
 function wireAssist() {
   document.getElementById('assistGuide').addEventListener('click', (e) => {
     const step = e.target.closest('[data-step]');
-    if (step) Assist.runStep(parseInt(step.dataset.step, 10));
+    if (step) { Assist.runStep(parseInt(step.dataset.step, 10)); return; }
+    const act = e.target.closest('[data-action]');
+    if (act) Assist.runAction(act.dataset.action);
   });
 }
 
@@ -361,9 +363,11 @@ function openNewProjectDialog() {
     </form>
   `, {
     onOpen(modal) {
+      modal.dataset.mode = 'assist'; // 選択中モードの色をモーダルに反映(初期はアシスト=緑)
       const seg = modal.querySelector('.seg');
       seg.querySelectorAll('button').forEach(b => b.onclick = () => {
         seg.dataset.mode = b.dataset.m;
+        modal.dataset.mode = b.dataset.m;
         seg.querySelectorAll('button').forEach(x => x.className = '');
         b.className = 'on accent';
       });

@@ -488,6 +488,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   font-size: 12px; color: transparent; font-weight: 700;
 }
 .guide-step.done .guide-check { background: var(--accent); border-color: var(--accent); color: #fff; }
+.guide-step.action .guide-check.act { border-color: var(--accent); color: var(--accent-strong); font-weight: 700; }
 .guide-step.active .guide-check { border-color: var(--accent); }
 .guide-body h3 { margin: 0 0 3px; font-size: 13px; }
 .guide-body p { margin: 0; font-size: 12px; color: var(--text-muted); }
@@ -510,6 +511,10 @@ body[data-mode="normal"] #assistPane { display: none; }
   width: min(520px, 92vw); max-height: 92vh; overflow-y: auto;
   background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
 }
+/* モーダル単位でテーマ色を上書きできる(新規作成で選択中のモードの色を反映するため)。 */
+.modal[data-mode="assist"] { --accent: #0f9d6b; --accent-strong: #0b7a54; --accent-soft: #e7f8f1; --accent-line: #86dcbb; }
+.modal[data-mode="normal"] { --accent: #2563eb; --accent-strong: #1d4ed8; --accent-soft: #e8f0fe; --accent-line: #9cc0fb; }
+.modal[data-mode] { border-top: 4px solid var(--accent); }
 .modal-head { padding: 16px 22px 4px; }
 .modal-head h2 { margin: 0; font-size: 16px; }
 .modal-body { padding: 8px 22px 4px; }
@@ -1466,6 +1471,33 @@ const NotesPanel = (() => {
     nameIn.oninput = () => { cur.name = nameIn.value; };
     nameIn.onchange = () => { persist(cur); renderList(); };
     ta.oninput = () => { cur.body = ta.value; };
+    // Teams風: 箇条書き/チェックリスト/番号リストの行で Enter すると次の項目を自動継続。
+    // 空の項目で Enter すると項目(マーカー)を消してリストを抜ける。
+    ta.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.shiftKey || e.isComposing) return;
+      const pos = ta.selectionStart;
+      if (pos !== ta.selectionEnd) return;
+      const val = ta.value;
+      const ls = val.lastIndexOf('\n', pos - 1) + 1;
+      const line = val.slice(ls, pos);
+      const bullet = /^(\s*)([-*])\s(\[[ xX]\]\s)?(.*)$/.exec(line);
+      const numbered = /^(\s*)(\d+)\.\s(.*)$/.exec(line);
+      let prefix = null, content = null;
+      if (bullet) { prefix = bullet[1] + bullet[2] + ' ' + (bullet[3] ? '[ ] ' : ''); content = bullet[4]; }
+      else if (numbered) { prefix = numbered[1] + (parseInt(numbered[2], 10) + 1) + '. '; content = numbered[3]; }
+      if (prefix === null) return;
+      e.preventDefault();
+      if (content.trim() === '') {
+        // 空項目 → マーカーを消してリストを抜ける
+        ta.value = val.slice(0, ls) + val.slice(pos);
+        ta.selectionStart = ta.selectionEnd = ls;
+      } else {
+        const insert = '\n' + prefix;
+        ta.value = val.slice(0, pos) + insert + val.slice(pos);
+        ta.selectionStart = ta.selectionEnd = pos + insert.length;
+      }
+      cur.body = ta.value;
+    });
 
     const tabs = main.querySelectorAll('.notes-tab');
     tabs.forEach(t => t.onclick = () => {
@@ -2106,9 +2138,19 @@ const Dependencies = (() => {
 const TaskPanel = (() => {
   let openSubId = null;
 
+  let panelHandle = null;
+
+  // 編集/追加/削除のモーダルを開く前に、このパネル(#panelHost, モーダルより前面)を閉じる。
+  // 閉じないとパネルの背景がモーダルを覆い、モーダルが操作できない(非活性)ため。
+  function closeThen(fn) {
+    openSubId = null;
+    if (panelHandle) panelHandle.close();
+    fn();
+  }
+
   function open(subId) {
     openSubId = subId;
-    UI.openPanel(`
+    panelHandle = UI.openPanel(`
       <div class="panel-head">
         <h2>タスク管理</h2>
         <button class="icon-btn" data-close>✕</button>
@@ -2118,17 +2160,19 @@ const TaskPanel = (() => {
       <div class="panel-foot"><button class="btn primary" id="taskAddBtn" style="width:100%">＋ タスクを追加</button></div>
     `, {
       onOpen(panel) {
+        const subId2 = subId;
         const body = panel.querySelector('#taskPanelBody');
         body.addEventListener('click', (e) => {
           const taskEl = e.target.closest('[data-task]');
           if (!taskEl) return;
           const st = e.target.closest('[data-st]');
           if (st) { Schedules.setStatus(taskEl.dataset.task, st.dataset.st); return; }
-          if (e.target.closest('[data-edit]')) { Schedules.openEditor({ id: taskEl.dataset.task }); return; }
-          if (e.target.closest('[data-del]')) { Schedules.del(taskEl.dataset.task); return; }
+          const tid = taskEl.dataset.task;
+          if (e.target.closest('[data-edit]')) { closeThen(() => Schedules.openEditor({ id: tid })); return; }
+          if (e.target.closest('[data-del]')) { closeThen(() => Schedules.del(tid)); return; }
         });
         panel.querySelector('#taskAddBtn').onclick = () =>
-          Schedules.openEditor({ parentId: openSubId, level: 2 });
+          closeThen(() => Schedules.openEditor({ parentId: subId2, level: 2 }));
         renderBody();
       }
     });
@@ -2716,10 +2760,54 @@ const Assist = (() => {
     if (i === 4) { Milestones.openEditor(null); return; }
   }
 
+  // 全ステップ完了後の「できること」アクション一覧。
+  function actions() {
+    return [
+      { key: 'schedule', icon: '＋', title: 'スケジュール追加', body: '新しいフェーズを追加します。' },
+      { key: 'sub', icon: '＋', title: 'サブスケ追加', body: '成果物・工程を追加します。' },
+      { key: 'task', icon: '＋', title: 'タスク設定', body: '具体的な作業を追加します。' },
+      { key: 'milestone', icon: '◆', title: 'マイルストーン選択', body: '納期やレビュー会などの目印を置きます。' },
+      { key: 'memo', icon: '📝', title: 'メモ出し', body: 'プロジェクトメモを開きます。' },
+    ];
+  }
+
+  function runAction(key) {
+    if (key === 'schedule') return runStep(0);
+    if (key === 'sub') return runStep(1);
+    if (key === 'task') return runStep(2);
+    if (key === 'milestone') return Milestones.openEditor(null);
+    if (key === 'memo') return NotesPanel.open();
+  }
+
   function renderAssist() {
     const host = document.getElementById('assistGuide');
     if (document.body.dataset.mode !== 'assist' || !state.project) { host.innerHTML = ''; return; }
     const list = steps();
+    const allDone = list.every(s => s.done);
+
+    if (allDone) {
+      // すべて完了 → 「できること」アクション一覧に変化。
+      host.innerHTML = `
+        <div class="assist-head">
+          <h2>できること</h2>
+          <p>ひととおり揃いました。ここから自由に追加・編集できます。</p>
+        </div>
+        <div class="guide-steps">
+          ${actions().map(a => `
+            <button type="button" class="guide-step action" data-action="${a.key}">
+              <span class="guide-check act">${a.icon}</span>
+              <div class="guide-body">
+                <h3>${escapeHtml(a.title)}</h3>
+                <p>${escapeHtml(a.body)}</p>
+              </div>
+              <span class="go">›</span>
+            </button>`).join('')}
+        </div>
+        <div class="assist-tip">全ステップ完了 🎉 いつでもここから操作できます。</div>
+      `;
+      return;
+    }
+
     const activeIdx = list.findIndex(s => !s.done);
     host.innerHTML = `
       <div class="assist-head">
@@ -2742,7 +2830,7 @@ const Assist = (() => {
     `;
   }
 
-  return { templateList, applyTemplate, renderAssist, runStep };
+  return { templateList, applyTemplate, renderAssist, runStep, runAction };
 })();
 
 
@@ -3161,7 +3249,9 @@ function selectNode(id) {
 function wireAssist() {
   document.getElementById('assistGuide').addEventListener('click', (e) => {
     const step = e.target.closest('[data-step]');
-    if (step) Assist.runStep(parseInt(step.dataset.step, 10));
+    if (step) { Assist.runStep(parseInt(step.dataset.step, 10)); return; }
+    const act = e.target.closest('[data-action]');
+    if (act) Assist.runAction(act.dataset.action);
   });
 }
 
@@ -3363,9 +3453,11 @@ function openNewProjectDialog() {
     </form>
   `, {
     onOpen(modal) {
+      modal.dataset.mode = 'assist'; // 選択中モードの色をモーダルに反映(初期はアシスト=緑)
       const seg = modal.querySelector('.seg');
       seg.querySelectorAll('button').forEach(b => b.onclick = () => {
         seg.dataset.mode = b.dataset.m;
+        modal.dataset.mode = b.dataset.m;
         seg.querySelectorAll('button').forEach(x => x.className = '');
         b.className = 'on accent';
       });
