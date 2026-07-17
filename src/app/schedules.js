@@ -119,9 +119,10 @@ const Schedules = (() => {
           <span class="num">${nums[n.id] || ''}</span>
           <span class="lvl-badge lv${r.level}" title="${LEVEL_NAME[r.level]}">${badgeText}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
+          ${persistent}
+          <span class="tree-spacer"></span>
           <span class="meta">${meta}</span>
           <span class="row-status ${effSt}">${statusText}</span>
-          ${persistent}
           <span class="row-actions">
             ${hoverAdd}
             <button class="icon-btn" data-edit="${n.id}" title="編集">✎</button>
@@ -305,11 +306,25 @@ const Schedules = (() => {
     afterChange();
   }
 
+  // 変更前後を比較して「何を何に変えたか」の説明を作る。
+  function describeChanges(oldNode, data) {
+    const parts = [];
+    if (data.name !== undefined && data.name !== oldNode.name) parts.push(`名称「${oldNode.name || '(空)'}」→「${data.name || '(空)'}」`);
+    const os = oldNode.startDate || '', ns = data.startDate === undefined ? os : (data.startDate || '');
+    const oe = oldNode.endDate || '', ne = data.endDate === undefined ? oe : (data.endDate || '');
+    if (os !== ns || oe !== ne) parts.push(`期間 ${os || '未設定'}〜${oe || '未設定'} → ${ns || '未設定'}〜${ne || '未設定'}`);
+    if (data.assignee !== undefined && data.assignee !== (oldNode.assignee || '') && !(data.assignee === '' && !oldNode.assignee)) parts.push(`担当 ${oldNode.assignee || '(なし)'} → ${data.assignee || '(なし)'}`);
+    if (data.status !== undefined && data.status !== (oldNode.status || 'todo')) parts.push(`状態 ${statusLabel(oldNode.status || 'todo')} → ${statusLabel(data.status)}`);
+    return parts;
+  }
+
   async function saveNode(id, data, predIds) {
     History.snapshot();
     const node = byId(id);
+    const changes = describeChanges(node, data);
     Object.assign(node, data);
-    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」を編集` });
+    const label = changes.length ? `「${node.name}」: ${changes.join(' / ')}` : `「${node.name}」を編集`;
+    await DB.put('schedules', node, { action: 'edit', label });
     await Projects.touch();
     if (predIds) await Dependencies.setPredecessors(id, predIds);
     await Dependencies.rescheduleFrom(id);
@@ -320,8 +335,9 @@ const Schedules = (() => {
   async function updateDates(id, startDate, endDate) {
     History.snapshot();
     const node = byId(id);
+    const os = node.startDate || '未設定', oe = node.endDate || '未設定';
     node.startDate = startDate; node.endDate = endDate;
-    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」の期間を変更` });
+    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」の期間 ${os}〜${oe} → ${startDate}〜${endDate}` });
     await Projects.touch();
     await Dependencies.rescheduleFrom(id);
     afterChange();
@@ -330,8 +346,9 @@ const Schedules = (() => {
   async function setStatus(id, status) {
     History.snapshot();
     const node = byId(id);
+    const old = node.status || 'todo';
     node.status = status;
-    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」を${statusLabel(status)}に` });
+    await DB.put('schedules', node, { action: 'edit', label: `「${node.name}」の状態 ${statusLabel(old)} → ${statusLabel(status)}` });
     await Projects.touch();
     afterChange();
   }
@@ -352,7 +369,7 @@ const Schedules = (() => {
       if (node.startDate) node.startDate = fmtDate(addDays(parseDate(node.startDate), days));
       if (node.endDate) node.endDate = fmtDate(addDays(parseDate(node.endDate), days));
       // 履歴には代表として1件だけ記録する。
-      await DB.put('schedules', node, first ? { action: 'edit', label: `「${root.name}」を配下ごと移動` } : undefined);
+      await DB.put('schedules', node, first ? { action: 'edit', label: `「${root.name}」を配下ごと ${days > 0 ? '+' + days : days}日 移動` } : undefined);
       first = false;
     }
     await Projects.touch();

@@ -80,15 +80,34 @@ const DB = (() => {
     });
   }
 
-  function _log(projectId, meta) {
+  const HISTORY_MAX = 80; // 履歴(スナップショット付き)の保持件数の上限
+
+  async function _log(projectId, meta) {
     const entry = {
       id: uid('h'),
       projectId,
       at: Date.now(),
       action: meta.action || 'change',
       label: meta.label || '',
+      // 変更「後」の状態スナップショット。この時点への復元(ロールバック)に使う。
+      // 呼び出し元は state.* を更新してから DB.put/remove するので、ここでは反映済みの状態が取れる。
+      snap: {
+        schedules: (state.schedules || []).map(x => ({ ...x })),
+        milestones: (state.milestones || []).map(x => ({ ...x })),
+        dependencies: (state.dependencies || []).map(x => ({ ...x })),
+      },
     };
-    return reqP(tx('historyLog', 'readwrite').put(entry));
+    await reqP(tx('historyLog', 'readwrite').put(entry));
+    // 上限を超えた古い履歴を間引く(スナップショット付きで肥大化するため)。
+    await _pruneHistory(projectId);
+  }
+
+  async function _pruneHistory(projectId) {
+    const all = await getAllByProject('historyLog', projectId);
+    if (all.length <= HISTORY_MAX) return;
+    all.sort((a, b) => a.at - b.at); // 古い順
+    const excess = all.slice(0, all.length - HISTORY_MAX);
+    await bulkRemove('historyLog', excess.map(e => e.id));
   }
 
   // meta ストア(選択中プロジェクトIDなど)
