@@ -24,11 +24,14 @@ const NotesPanel = (() => {
         <button class="icon-btn" id="notesFloatClose" title="閉じる(内容は保持されます)">✕</button>
       </div>
       <div class="panel-sub">
-        <div class="tp-hint">タスクの洗い出し・下書きに。開いたまま他の操作ができます。スケジュール/サブスケジュール/タスクの追加・編集画面からも参照できます。</div>
+        <div class="notes-tabs">
+          <button type="button" class="notes-tab on" data-nt="edit">編集</button>
+          <button type="button" class="notes-tab" data-nt="preview">プレビュー</button>
+        </div>
       </div>
       <div class="panel-body notes-body">
-        <textarea id="notesEditor" class="notes-editor">${escapeHtml(md)}</textarea>
-        <div class="notes-preview md-preview" id="notesPreview"></div>
+        <textarea id="notesEditor" class="notes-editor" placeholder="タスクの洗い出し・下書きに。Markdown記法(見出し #、箇条書き -、チェックリスト - [ ]、太字 **）が使えます。">${escapeHtml(md)}</textarea>
+        <div class="notes-preview md-preview" id="notesPreview" hidden></div>
       </div>
       <div class="panel-foot notes-foot">
         <button type="button" class="btn" id="notesImportBtn">📄 読み込む</button>
@@ -41,10 +44,19 @@ const NotesPanel = (() => {
     const preview = h.querySelector('#notesPreview');
     const update = () => {
       const html = renderMarkdownSafe(ta.value);
-      preview.innerHTML = html || '<p class="notes-preview-empty">ここにプレビューが表示されます。</p>';
+      preview.innerHTML = html || '<p class="notes-preview-empty">まだ何も書かれていません。</p>';
     };
-    update();
-    ta.addEventListener('input', update);
+
+    // 編集/プレビューのタブ切替(インライン式: 同じ場所に片方だけ表示)。
+    const tabs = h.querySelectorAll('.notes-tab');
+    const showTab = (which) => {
+      tabs.forEach(t => t.classList.toggle('on', t.dataset.nt === which));
+      const isEdit = which === 'edit';
+      ta.hidden = !isEdit;
+      preview.hidden = isEdit;
+      if (!isEdit) update();
+    };
+    tabs.forEach(t => t.onclick = () => showTab(t.dataset.nt));
 
     h.querySelector('#notesFloatClose').onclick = close;
 

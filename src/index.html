@@ -25,12 +25,12 @@
       </div>
       <div class="hd-right">
         <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ マイルストーン</button>
-        <select id="granularitySelect" class="hd-select" title="表示粒度">
-          <option value="day">日</option>
-          <option value="week">週</option>
-          <option value="month">月</option>
-          <option value="quarter">四半期</option>
-        </select>
+        <div id="granularityToggle" class="seg-toggle" title="表示粒度">
+          <button data-gran="day" class="seg-opt">日</button>
+          <button data-gran="week" class="seg-opt">週</button>
+          <button data-gran="month" class="seg-opt">月</button>
+          <button data-gran="quarter" class="seg-opt">四半期</button>
+        </div>
         <button id="undoBtn" class="hd-btn" title="元に戻す (Ctrl+Z)" disabled>↶ 元に戻す</button>
         <button id="historyBtn" class="hd-btn" title="変更履歴">履歴</button>
         <button id="exportBtn" class="hd-btn" title="エクスポート / バックアップ">出力</button>

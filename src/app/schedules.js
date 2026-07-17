@@ -210,6 +210,26 @@ const Schedules = (() => {
       <div class="field"><label>終了日(自動計算 / 直接入力可)</label><input type="date" name="endDate" value="${end}">${egHint('土日・祝日を除いて計算します')}</div>
     ` : `<div class="field"><label>期間</label><p style="font-size:12px;color:var(--text-muted);margin:0">子の期間から自動で決まります。</p></div>`;
 
+    // 親(どのスケジュール/サブスケジュールに属するか)を選べるようにする。追加時の選択にも、
+    // 編集時の別の親への付け替えにも使える。
+    let parentField = '';
+    if (level >= 1) {
+      const pnums = computeNumbering();
+      const candidates = state.schedules
+        .filter(x => levelOf(x) === level - 1)
+        .sort((a, b) => String(pnums[a.id] || '').localeCompare(String(pnums[b.id] || ''), undefined, { numeric: true }));
+      if (candidates.length) {
+        const optsHtml = candidates.map(c =>
+          `<option value="${c.id}" ${c.id === parentId ? 'selected' : ''}>${pnums[c.id]} ${escapeHtml(c.name)}</option>`).join('');
+        parentField = `<div class="field"><label>所属する${LEVEL_NAME[level - 1]}</label>
+          <select name="parentId">${optsHtml}</select>
+          ${egHint('別の' + LEVEL_NAME[level - 1] + 'に付け替えられます')}</div>`;
+      } else {
+        parentField = `<div class="field"><label>所属する${LEVEL_NAME[level - 1]}</label>
+          <p style="font-size:12px;color:#dc2626;margin:0">先に${LEVEL_NAME[level - 1]}を作成してください。</p></div>`;
+      }
+    }
+
     UI.openModal(`
       <div class="modal-head"><h2>${editing ? LEVEL_NAME[level] + 'を編集' : LEVEL_NAME[level] + 'を追加'}</h2></div>
       <form>
@@ -220,6 +240,7 @@ const Schedules = (() => {
             <input name="name" value="${escapeHtml(n.name || '')}" placeholder="${assist ? '' : LEVEL_NAME[level] + '名'}" autocomplete="off">
             ${egHint('例: ' + eg.name)}
           </div>
+          ${parentField}
           ${dateFields}
           <div class="field">
             <label>担当者</label>
@@ -279,12 +300,17 @@ const Schedules = (() => {
           status,
           note: form.note.value.trim(),
         };
+        // 選択された親(未選択時は元の parentId のまま)。
+        const chosenParent = form.parentId ? form.parentId.value : parentId;
+        if (level >= 1 && form.querySelector('[name=parentId]') === null && !parentId) {
+          toast(`先に${LEVEL_NAME[level - 1]}を作成してください`); return false;
+        }
         if (editing) {
           const predIds = isLeaf
             ? Array.from(form.querySelectorAll('input[name=pred]:checked')).map(i => i.value)
             : null;
-          saveNode(editing.id, data, predIds);
-        } else add(parentId, level, data);
+          saveNode(editing.id, data, predIds, chosenParent);
+        } else add(chosenParent, level, data);
       }
     });
   }
@@ -318,11 +344,18 @@ const Schedules = (() => {
     return parts;
   }
 
-  async function saveNode(id, data, predIds) {
+  async function saveNode(id, data, predIds, newParentId) {
     History.snapshot();
     const node = byId(id);
     const changes = describeChanges(node, data);
     Object.assign(node, data);
+    // 親の付け替え(別のスケジュール/サブスケジュールへ移動)。
+    if (newParentId !== undefined && newParentId !== node.parentId) {
+      const oldParent = byId(node.parentId), newParent = byId(newParentId);
+      node.parentId = newParentId || null;
+      node.order = childrenOf(newParentId).filter(c => c.id !== id).length; // 末尾に付ける
+      changes.push(`所属 ${oldParent ? '「' + oldParent.name + '」' : '(なし)'} → ${newParent ? '「' + newParent.name + '」' : '(なし)'}`);
+    }
     const label = changes.length ? `「${node.name}」: ${changes.join(' / ')}` : `「${node.name}」を編集`;
     await DB.put('schedules', node, { action: 'edit', label });
     await Projects.touch();

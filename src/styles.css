@@ -161,6 +161,17 @@ body[data-mode="normal"] .mode-opt[data-mode="normal"] {
   box-shadow: var(--shadow-sm);
 }
 
+/* 横並びの選択トグル(表示粒度など) */
+.seg-toggle {
+  display: inline-flex; padding: 3px; gap: 2px;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px;
+}
+.seg-opt {
+  border: 0; background: transparent; color: var(--text-muted);
+  font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 999px; transition: all .14s;
+}
+.seg-opt.on { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
+
 /* ===== 本体レイアウト ===== */
 #appBody { flex: 1 1 auto; display: flex; min-height: 0; }
 .pane { min-height: 0; background: var(--surface); }
@@ -589,7 +600,7 @@ body[data-mode="normal"] #assistPane { display: none; }
    被らない程度に絞る。横方向だけリサイズ可(縦は常に画面いっぱいのまま)。 */
 .notes-float {
   position: fixed; right: 0; top: var(--header-h); bottom: 0;
-  width: 600px; min-width: 360px; max-width: 70vw;
+  width: 300px; min-width: 240px; max-width: 50vw;
   background: var(--surface); border-left: 1px solid var(--border-strong);
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
   overflow: hidden; resize: horizontal;
@@ -600,20 +611,26 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう
    その分だけ本体側に右余白を確保し、パネル幅は固定(横リサイズ不可)にする。 */
 body[data-mode="normal"] #notesBtn { display: none; }
-body[data-mode="normal"] #appBody { padding-right: 600px; }
-body[data-mode="normal"] #progressStrip { padding-right: 616px; }
-body[data-mode="normal"] .notes-float { width: 600px; min-width: 600px; max-width: 600px; resize: none; }
+body[data-mode="normal"] #appBody { padding-right: 300px; }
+body[data-mode="normal"] #progressStrip { padding-right: 316px; }
+body[data-mode="normal"] .notes-float { width: 300px; min-width: 300px; max-width: 300px; resize: none; }
 body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示なので閉じるボタンは隠す */
 
+/* 編集/プレビューのタブ */
+.notes-tabs { display: inline-flex; gap: 2px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; }
+.notes-tab { border: 0; background: transparent; color: var(--text-muted); font-size: 12px; font-weight: 600; padding: 5px 16px; border-radius: 999px; }
+.notes-tab.on { background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-sm); }
+
 .notes-body { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+/* タブ切替で片方だけ表示するため、それぞれ全面を占める。 */
 .notes-editor {
-  width: 100%; flex: 1 1 45%; min-height: 70px; resize: none;
+  width: 100%; flex: 1 1 auto; min-height: 70px; resize: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6;
   padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text);
 }
 .notes-editor:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .notes-editor-sm { flex: none; min-height: 90px; resize: vertical; }
-.notes-preview { flex: 1 1 45%; min-height: 0; overflow-y: auto; border-top: 1px dashed var(--border); padding-top: 10px; }
+.notes-preview { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .notes-preview-empty { color: var(--text-faint); font-size: 12px; margin: 0; }
 .notes-foot { display: flex; gap: 8px; flex-wrap: wrap; }
 .notes-import-row { margin-top: 8px; }
