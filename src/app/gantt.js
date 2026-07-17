@@ -101,6 +101,9 @@ const Gantt = (() => {
   }
 
   // --- バー行 ---
+  // 色・太さは階層(レベル)だけで決める: スケジュール(lv0)=テーマ色・最太、
+  // サブスケジュール(lv1)=グレー・中太、タスク(lv2)=ステータス濃淡・最細。
+  // 子を持つかどうかは「集計値(summary)を出すか、自分の日程を直接ドラッグできるか」だけに影響する。
   function renderRows(rows) {
     return rows.map(r => {
       const n = r.node;
@@ -109,14 +112,25 @@ const Gantt = (() => {
       if (sp) {
         const left = dateToX(sp.start);
         const width = Math.max((dayDiff(sp.start, sp.end) + 1) * scale.pxPerDay, 6);
-        if (r.hasChildren) {
-          bar = `<div class="bar summary lv${r.level}" style="left:${left}px;width:${width}px"><span class="bar-label">${escapeHtml(n.name)}</span></div>`;
-        } else {
+        const draggable = !r.hasChildren;
+        if (r.level === 2) {
+          // タスク(常に葉): ステータス濃淡・最細・ドラッグ可。
           const st = Schedules.effectiveStatus(n);
           const label = width > 40 ? `<span class="bar-label">${escapeHtml(n.name)}</span>` : '';
-          bar = `<div class="bar ${st}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}">
+          bar = `<div class="bar lv2 ${st}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}">
                    <span class="grip left"></span>${label}<span class="grip right"></span>
                  </div>`;
+        } else {
+          // スケジュール/サブスケジュール: レベル色。子が無ければ自身の日程を直接ドラッグできる。
+          const lv = r.level === 0 ? 'lv0' : 'lv1';
+          const label = `<span class="bar-label">${escapeHtml(n.name)}</span>`;
+          if (draggable) {
+            bar = `<div class="bar ${lv}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}">
+                     <span class="grip left"></span>${label}<span class="grip right"></span>
+                   </div>`;
+          } else {
+            bar = `<div class="bar summary ${lv}" style="left:${left}px;width:${width}px">${label}</div>`;
+          }
         }
       }
       return `<div class="gantt-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-row="${n.id}">${bar}</div>`;

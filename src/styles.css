@@ -257,7 +257,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .task-chip:hover { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
 
+/* WBSの点はガントのバー色と揃える: lv0/lv1 は階層色、タスク(ステータスクラス)は濃淡。 */
 .status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; border: 1px solid rgba(15,23,42,.12); }
+.status-dot.lv0 { background: var(--accent-strong); }
+.status-dot.lv1 { background: #64748b; }
 .status-dot.todo { background: var(--tone-todo); }
 .status-dot.doing { background: var(--tone-doing); }
 .status-dot.done { background: var(--tone-done); }
@@ -303,9 +306,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 .gantt-row:hover { background: rgba(148, 163, 184, .06); }
 .gantt-row.selected { background: var(--accent-soft); }
 
+/* バーの色・太さは階層(lv0/1/2)だけで決まる: スケジュール=テーマ色・最太、
+   サブスケジュール=グレー・中太、タスク=ステータス濃淡・最細。 */
 .bar {
   position: absolute;
-  top: 8px; height: calc(var(--row-h) - 16px);
   border-radius: 6px;
   display: flex; align-items: center;
   padding: 0 8px;
@@ -323,7 +327,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
   width: 3px; height: 55%; border-left: 2px solid rgba(255,255,255,.85); border-right: 2px solid rgba(255,255,255,.85);
 }
-.bar.done[data-bar]:hover .grip::after { border-color: rgba(30,41,59,.6); }
+.bar.lv2.done[data-bar]:hover .grip::after { border-color: rgba(30,41,59,.6); }
 .bar.dragging { box-shadow: 0 8px 24px rgba(15,23,42,.4) !important; filter: brightness(1.06); outline: 2px solid #fff; outline-offset: -1px; z-index: 9; opacity: .95; }
 .bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
 .bar .grip { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
@@ -336,24 +340,26 @@ body[data-mode="normal"] #assistPane { display: none; }
   padding: 5px 10px; border-radius: 6px; box-shadow: var(--shadow-md);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-/* ステータスは同系色の濃淡(未着手=濃 → 完了=淡)。完了は淡いので文字を濃色に。 */
-.bar.todo { background: var(--tone-todo); }
-.bar.doing { background: var(--tone-doing); }
-.bar.done { background: var(--tone-done); color: #1e293b; }
-.bar.done .bar-label { text-shadow: none; }
 
-/* サマリーバー。親(スケジュール)=テーマ色、子(サブスケジュール)=グレーで区別する。 */
+/* lv0 = スケジュール(親)。最太・テーマ色。 */
+.bar.lv0 { top: 4px; height: calc(var(--row-h) - 8px); background: var(--accent-strong); --bs: var(--accent-strong); }
+/* lv1 = サブスケジュール(子)。中太・グレー。 */
+.bar.lv1 { top: 9px; height: calc(var(--row-h) - 18px); background: #64748b; --bs: #64748b; }
+/* lv2 = タスク。最細・ステータス濃淡(未着手=濃 → 完了=淡)。完了は淡いので文字を濃色に。 */
+.bar.lv2 { top: 13px; height: calc(var(--row-h) - 26px); }
+.bar.lv2.todo { background: var(--tone-todo); }
+.bar.lv2.doing { background: var(--tone-doing); }
+.bar.lv2.done { background: var(--tone-done); color: #1e293b; }
+.bar.lv2.done .bar-label { text-shadow: none; }
+
+/* サマリー(子を持つスケジュール/サブスケジュール): 上記の lv0/lv1 の色を継承しつつ、非対話・端に三角を付ける。 */
 .bar.summary {
-  top: 14px; height: calc(var(--row-h) - 26px);
-  background: var(--bs, #64748b); border-radius: 3px; cursor: default;
-  box-shadow: none; opacity: .95;
+  border-radius: 3px; cursor: default; box-shadow: none; opacity: .95;
 }
-.bar.summary.lv0 { --bs: var(--accent-strong); }  /* スケジュール(親) = テーマ色 */
-.bar.summary.lv1 { --bs: #64748b; }               /* サブスケジュール(子) = グレー */
 .bar.summary::before, .bar.summary::after {
   content: ""; position: absolute; bottom: -5px; width: 0; height: 0;
   border-left: 5px solid transparent; border-right: 5px solid transparent;
-  border-top: 6px solid var(--bs, #475569);
+  border-top: 6px solid var(--bs);
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
