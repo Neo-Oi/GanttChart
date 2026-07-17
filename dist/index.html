@@ -2053,6 +2053,16 @@ const Gantt = (() => {
       parts.push(`<div class="today-flag" style="left:${tx}px">今日</div>`);
       parts.push(`<div class="today-line" style="left:${tx}px;height:${totalH}px"></div>`);
     }
+    // マイルストーン(今日線と同じ「確実に見える」描画経路で出す)。
+    // 複数が近接しても重ならないよう、フラグは3段でずらす。
+    state.milestones.forEach((m, i) => {
+      const d = parseDate(m.date);
+      if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) > 0) return;
+      const mx = dateToX(d) + scale.pxPerDay / 2;
+      const topOffset = (i % 3) * 19;
+      parts.push(`<div class="milestone-line" style="left:${mx}px;height:${totalH}px"></div>`);
+      parts.push(`<button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${mx}px;top:${topOffset}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`);
+    });
     return parts.join('');
   }
 
@@ -2090,18 +2100,6 @@ const Gantt = (() => {
         }
       }
       return `<div class="gantt-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-row="${n.id}">${bar}</div>`;
-    }).join('');
-  }
-
-  // --- マイルストーン ---
-  // 今日線と同じく、チャートを縦に貫く線として描画する(行数やスクロール位置に関係なく見える)。
-  function renderMilestones(totalH) {
-    return state.milestones.map(m => {
-      const d = parseDate(m.date);
-      if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) > 0) return '';
-      const x = dateToX(d) + scale.pxPerDay / 2;
-      return `<div class="milestone-line" style="left:${x}px;height:${totalH}px"></div>
-              <button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${x}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`;
     }).join('');
   }
 
@@ -2143,12 +2141,12 @@ const Gantt = (() => {
       return;
     }
     const totalH = Math.max(rows.length * ROW_H, ROW_H * 3);
+    // マイルストーンの線・フラグは renderGridDecor 内(今日線と同じ経路)で描画される。
     body.innerHTML = `
       <div class="gantt-grid" style="width:${scale.width}px;height:${totalH}px;position:relative">
         ${renderGridDecor(totalH)}
         <div class="gantt-rows">${renderRows(rows)}</div>
         <svg id="depSvg" width="${scale.width}" height="${totalH}">${renderDeps(rows)}</svg>
-        ${renderMilestones(totalH)}
       </div>`;
   }
 
