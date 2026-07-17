@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GanttChart</title>
+  <!-- BUILD:STYLES -->
+</head>
+<body data-mode="assist">
+  <div id="app">
+    <!-- ヘッダー -->
+    <header id="appHeader">
+      <div class="hd-left">
+        <span class="hd-logo">GanttChart</span>
+        <select id="projectSelect" class="hd-select" title="プロジェクトを切り替え"></select>
+        <button id="newProjectBtn" class="hd-btn" title="新しいプロジェクト">＋ 新規</button>
+      </div>
+      <div class="hd-center">
+        <div id="modeToggle" class="mode-toggle" title="モードを切り替え">
+          <button data-mode="assist" class="mode-opt">アシスト</button>
+          <button data-mode="normal" class="mode-opt">ノーマル</button>
+        </div>
+      </div>
+      <div class="hd-right">
+        <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ 節目</button>
+        <select id="granularitySelect" class="hd-select" title="表示粒度">
+          <option value="day">日</option>
+          <option value="week">週</option>
+          <option value="month">月</option>
+          <option value="quarter">四半期</option>
+        </select>
+        <button id="undoBtn" class="hd-btn" title="元に戻す (Ctrl+Z)" disabled>↶ 元に戻す</button>
+        <button id="historyBtn" class="hd-btn" title="変更履歴">履歴</button>
+        <button id="exportBtn" class="hd-btn" title="エクスポート / バックアップ">出力</button>
+      </div>
+    </header>
+
+    <!-- 本体: 左=ツリー / 中=ガント / 右=アシストガイド -->
+    <div id="appBody">
+      <section id="treePane" class="pane">
+        <div class="pane-toolbar">
+          <button id="addScheduleBtn" class="tool-btn primary">＋ スケジュール</button>
+          <span class="tree-col-head">名称 / 期間 / 状態</span>
+        </div>
+        <div id="treeList" class="tree-list"></div>
+      </section>
+
+      <section id="ganttPane" class="pane">
+        <div id="ganttHeader" class="gantt-header"></div>
+        <div id="ganttBody" class="gantt-body"></div>
+      </section>
+
+      <aside id="assistPane" class="pane assist-pane">
+        <div id="assistGuide"></div>
+      </aside>
+    </div>
+
+    <!-- モーダル / トースト -->
+    <div id="modalHost" class="modal-host hidden"></div>
+    <div id="panelHost" class="panel-host hidden"></div>
+    <div id="toastHost" class="toast-host"></div>
+  </div>
+
+  <!-- BUILD:VENDOR -->
+  <!-- BUILD:APP -->
+</body>
+</html>
