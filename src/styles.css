@@ -402,6 +402,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .bar-ghost::before, .bar-ghost::after { display: none; } /* summary の三角は複製しない */
 .bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
+.bar .bar-days { opacity: .8; font-weight: 400; margin-left: 3px; font-size: 10px; }
 .bar .grip { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
 .bar .grip.left { left: 0; } .bar .grip.right { right: 0; }
 
