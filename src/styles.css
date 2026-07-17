@@ -22,12 +22,15 @@
   --header-h: 56px;
 
   /* タスクのステータス色: 進捗が一目で分かるよう、はっきり色を分ける
-     (未着手=淡グレー / 進行中=アンバー / 完了=緑)。
-     いずれも明るい背景+濃色文字(#1e293b)の組み合わせでコントラスト比7以上を確保し、
-     バー上のラベルが読みやすいようにする。 */
+     (未着手=淡グレー / 進行中=アンバー / 完了=モードのテーマ色系)。
+     いずれも明るい背景+濃色文字(#1e293b)の組み合わせでコントラスト比を確保し、
+     バー上のラベルが読みやすいようにする。
+     --tone-done はモード別ブロックで上書き(アシスト=緑 / ノーマル=青)。
+     --tone-done-strong は白背景上の「完了」文字用の濃色版。 */
   --tone-todo: #cbd5e1;
   --tone-doing: #fbbf24;
   --tone-done: #4ade80;
+  --tone-done-strong: #15803d;
 
   /* アクセント(モードで切替。既定=アシスト/緑) */
   --accent: #0f9d6b;
@@ -43,6 +46,9 @@ body[data-mode="assist"] {
   --accent-strong: #0b7a54;
   --accent-soft: #e7f8f1;
   --accent-line: #86dcbb;
+  /* 「完了」はテーマに合わせて緑系 */
+  --tone-done: #4ade80;
+  --tone-done-strong: #15803d;
 }
 
 /* ノーマルモード: 青基調。 */
@@ -51,6 +57,9 @@ body[data-mode="normal"] {
   --accent-strong: #1d4ed8;
   --accent-soft: #e8f0fe;
   --accent-line: #9cc0fb;
+  /* 「完了」はテーマに合わせて青系 */
+  --tone-done: #60a5fa;
+  --tone-done-strong: #1d4ed8;
 }
 
 * { box-sizing: border-box; }
@@ -92,19 +101,31 @@ button { font-family: inherit; cursor: pointer; }
 
 /* ===== ヘッダー ===== */
 #appHeader {
-  height: var(--header-h);
+  min-height: var(--header-h);
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;            /* 狭い画面ではボタン群を崩さず折り返す */
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 0 18px;
+  gap: 6px 16px;
+  padding: 6px 18px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
   z-index: 20;
 }
-.hd-left, .hd-right, .hd-center { display: flex; align-items: center; gap: 10px; }
+.hd-left, .hd-right, .hd-center { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+
+/* 幅が狭いときはボタンの余白・文字を詰めて、できるだけ1〜2段に収める */
+@media (max-width: 1360px) {
+  #appHeader { gap: 4px 8px; padding: 6px 10px; }
+  .hd-left, .hd-right, .hd-center { gap: 4px 6px; }
+  .hd-logo { font-size: 15px; }
+  .hd-btn { height: 30px; padding: 0 9px; font-size: 12px; }
+  .hd-select { height: 30px; font-size: 12px; max-width: 160px; }
+  .mode-opt { padding: 5px 12px; font-size: 12px; }
+  .seg-opt { padding: 5px 9px; font-size: 11px; }
+}
 
 .hd-logo {
   font-weight: 700;
@@ -287,7 +308,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* 白背景上の文字なので、各ステータスの濃色版を使う(バーの色と同系で読みやすい)。 */
 .tree-row .row-status.todo { color: #64748b; }
 .tree-row .row-status.doing { color: #b45309; }
-.tree-row .row-status.done { color: #15803d; }
+.tree-row .row-status.done { color: var(--tone-done-strong); }
 /* ミニボタンはホバー時に右端へオーバーレイ表示(被せる)。行のレイアウトに影響しないので、
    ホバーしても状態・日付の列がずれない。 */
 .tree-row .row-actions {
@@ -717,22 +738,19 @@ html[data-theme="dark"] {
   --shadow-md: 0 4px 12px rgba(0, 0, 0, .4), 0 2px 4px rgba(0, 0, 0, .3);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, .55);
 }
-/* アクセント: 暗い背景では明るめの色相に寄せ、アクセント地のボタン類は
-   --on-accent を暗色文字に反転して読みやすさを保つ。 */
+/* アクセント: ライトモードと同じ色相ファミリーで統一する(緑が別物に見えないように)。
+   --accent はライトと同一。--accent-strong だけ、暗い背景上の文字としても読めるよう
+   同系色の少し明るい段に置き換える。--on-accent は白のまま(ライトと同じ見え方)。 */
 html[data-theme="dark"] body[data-mode="assist"] {
-  --accent: #10b981; --accent-strong: #34d399;
-  --accent-soft: #123527; --accent-line: #14532d; --on-accent: #0f172a;
+  --accent: #0f9d6b; --accent-strong: #12a878;
+  --accent-soft: #0e2f24; --accent-line: #1f7a55;
+  --tone-done-strong: #4ade80; /* 暗い背景では明るい緑を文字色に */
 }
 html[data-theme="dark"] body[data-mode="normal"] {
-  --accent: #3b82f6; --accent-strong: #60a5fa;
-  --accent-soft: #172554; --accent-line: #1e40af; --on-accent: #0f172a;
+  --accent: #2563eb; --accent-strong: #3b82f6;
+  --accent-soft: #16264d; --accent-line: #2953b8;
+  --tone-done-strong: #60a5fa; /* 暗い背景では明るい青を文字色に */
 }
-/* アクセント地に白文字を直書きしていた箇所は暗色文字に反転 */
-html[data-theme="dark"] .lvl-badge.lv0,
-html[data-theme="dark"] .project-flag,
-html[data-theme="dark"] .hist-tag.hist-add,
-html[data-theme="dark"] .bar.lv0 { color: #0f172a; }
-html[data-theme="dark"] .bar.lv0 .bar-label { text-shadow: none; }
 /* 文字色の濃色直書きを、暗い背景で読める明るさに */
 html[data-theme="dark"] .tree-row .name.lv1 { color: #94a3b8; }
 html[data-theme="dark"] .tree-row .name.lv2 { color: #cbd5e1; }
