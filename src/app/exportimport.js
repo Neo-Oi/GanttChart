@@ -5,7 +5,7 @@ const ExportImport = (() => {
 
   function openMenu() {
     UI.openModal(`
-      <div class="modal-head"><h2>出力 / バックアップ</h2></div>
+      <div class="modal-head"><h2>入出力 / バックアップ</h2></div>
       <div class="modal-body">
         <div class="field">
           <label>共有用(閲覧のために書き出す)</label>
@@ -78,10 +78,14 @@ const ExportImport = (() => {
     if (!state.project) return;
     const data = {
       app: 'GanttChart', version: 1, exportedAt: new Date().toISOString(),
-      project: { name: state.project.name, mode: state.project.mode },
+      project: {
+        name: state.project.name, mode: state.project.mode,
+        startDate: state.project.startDate || '', endDate: state.project.endDate || '',
+      },
       schedules: state.schedules,
       milestones: state.milestones,
       dependencies: state.dependencies,
+      notes: state.notes,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -102,7 +106,13 @@ const ExportImport = (() => {
     }
     const now = Date.now();
     const projectId = uid('p');
-    const project = { id: projectId, name: (data.project && data.project.name || '読み込んだプロジェクト') + '(復元)', mode: (data.project && data.project.mode) || 'assist', createdAt: now, updatedAt: now };
+    const src = data.project || {};
+    const project = {
+      id: projectId, name: (src.name || '読み込んだプロジェクト') + '(復元)',
+      mode: src.mode || 'assist',
+      startDate: src.startDate || '', endDate: src.endDate || '',
+      createdAt: now, updatedAt: now,
+    };
     await DB.put('projects', project);
 
     // id を振り直して参照を張り替える。
@@ -118,6 +128,9 @@ const ExportImport = (() => {
       if (!idMap[d.fromId] || !idMap[d.toId]) continue;
       await DB.put('dependencies', { id: uid('d'), projectId, fromId: idMap[d.fromId], toId: idMap[d.toId] });
     }
+    for (const nt of (data.notes || [])) {
+      await DB.put('notes', { ...nt, id: uid('n'), projectId });
+    }
     document.getElementById('modalHost').classList.add('hidden');
     document.getElementById('modalHost').innerHTML = '';
     await Projects.loadAll();
@@ -125,6 +138,7 @@ const ExportImport = (() => {
     toast('読み込みました');
   }
 
-  // 各出力/読込はメニュー経由でのみ呼ばれる(外部公開は openMenu だけ)。
-  return { openMenu };
+  // openMenu が通常の入口。exportJson/importJson はサンプル読み込み等の
+  // プログラム的な利用・検証のために公開しておく。
+  return { openMenu, exportJson, importJson };
 })();
