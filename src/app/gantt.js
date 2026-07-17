@@ -124,13 +124,14 @@ const Gantt = (() => {
   }
 
   // --- マイルストーン ---
+  // 今日線と同じく、チャートを縦に貫く線として描画する(行数やスクロール位置に関係なく見える)。
   function renderMilestones(totalH) {
     return state.milestones.map(m => {
       const d = parseDate(m.date);
       if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) > 0) return '';
       const x = dateToX(d) + scale.pxPerDay / 2;
-      return `<div class="milestone" data-ms="${m.id}" style="left:${x}px;top:11px" title="${escapeHtml(m.name)} (${m.date})"></div>
-              <div class="milestone-label" style="left:${x}px;top:11px">${escapeHtml(m.name)}</div>`;
+      return `<div class="milestone-line" style="left:${x}px;height:${totalH}px"></div>
+              <button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${x}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`;
     }).join('');
   }
 

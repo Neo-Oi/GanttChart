@@ -231,7 +231,7 @@ function openNewProjectDialog() {
         <div class="field">
           <label>モード</label>
           <div class="seg" data-mode="assist">
-            <button type="button" data-m="assist" class="on done">アシスト(初学者向け・緑)</button>
+            <button type="button" data-m="assist" class="on accent">アシスト(初学者向け・緑)</button>
             <button type="button" data-m="normal" class="">ノーマル(経験者向け・青)</button>
           </div>
         </div>
@@ -260,7 +260,7 @@ function openNewProjectDialog() {
       seg.querySelectorAll('button').forEach(b => b.onclick = () => {
         seg.dataset.mode = b.dataset.m;
         seg.querySelectorAll('button').forEach(x => x.className = '');
-        b.className = 'on done';
+        b.className = 'on accent';
       });
       const tplInput = modal.querySelector('[name=template]');
       const cards = modal.querySelectorAll('.template-card');
