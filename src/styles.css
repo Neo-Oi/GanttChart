@@ -660,7 +660,7 @@ body[data-mode="normal"] #notesFloatClose { display: none; }
 .notes-empty { color: var(--text-faint); font-size: 12px; margin: 4px 2px; }
 
 .notes-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; min-width: 0; }
-.notes-name { height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--text); }
+.notes-name { height: 32px; padding: 0 10px; border: 1px solid var(--border-strong); border-radius: 7px; font-size: 13px; font-weight: 600; color: var(--text); background: var(--surface); }
 .notes-name:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
 /* 編集/プレビューのタブ */
@@ -672,6 +672,7 @@ body[data-mode="normal"] #notesFloatClose { display: none; }
   width: 100%; flex: 1 1 auto; min-height: 70px; resize: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6;
   padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text);
+  background: var(--surface);
 }
 .notes-editor:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .notes-editor-sm { flex: none; min-height: 90px; resize: vertical; }
@@ -699,8 +700,69 @@ body[data-mode="normal"] #notesFloatClose { display: none; }
 
 .hidden { display: none !important; }
 
+/* ===== ダークモード =====
+   レイアウト・内容は一切変えず、色トークンの差し替えだけで実現する。
+   html[data-theme="dark"] はヘッダーの 🌙/☀ トグルで付き、localStorage に保存される。 */
+html[data-theme="dark"] {
+  color-scheme: dark; /* ネイティブのスクロールバー・日付ピッカー等も暗色に */
+  --bg: #0f172a;
+  --surface: #1e293b;
+  --surface-2: #16213a;
+  --border: #334155;
+  --border-strong: #475569;
+  --text: #e2e8f0;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3), 0 1px 3px rgba(0, 0, 0, .35);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, .4), 0 2px 4px rgba(0, 0, 0, .3);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .55);
+}
+/* アクセント: 暗い背景では明るめの色相に寄せ、アクセント地のボタン類は
+   --on-accent を暗色文字に反転して読みやすさを保つ。 */
+html[data-theme="dark"] body[data-mode="assist"] {
+  --accent: #10b981; --accent-strong: #34d399;
+  --accent-soft: #123527; --accent-line: #14532d; --on-accent: #0f172a;
+}
+html[data-theme="dark"] body[data-mode="normal"] {
+  --accent: #3b82f6; --accent-strong: #60a5fa;
+  --accent-soft: #172554; --accent-line: #1e40af; --on-accent: #0f172a;
+}
+/* アクセント地に白文字を直書きしていた箇所は暗色文字に反転 */
+html[data-theme="dark"] .lvl-badge.lv0,
+html[data-theme="dark"] .project-flag,
+html[data-theme="dark"] .hist-tag.hist-add,
+html[data-theme="dark"] .bar.lv0 { color: #0f172a; }
+html[data-theme="dark"] .bar.lv0 .bar-label { text-shadow: none; }
+/* 文字色の濃色直書きを、暗い背景で読める明るさに */
+html[data-theme="dark"] .tree-row .name.lv1 { color: #94a3b8; }
+html[data-theme="dark"] .tree-row .name.lv2 { color: #cbd5e1; }
+html[data-theme="dark"] .lvl-badge.lv2 { color: #cbd5e1; }
+html[data-theme="dark"] .tree-row .row-status.todo { color: #94a3b8; }
+html[data-theme="dark"] .tree-row .row-status.doing { color: #fbbf24; }
+html[data-theme="dark"] .tree-row .row-status.done { color: #4ade80; }
+/* 目盛りの土日祝は明るい色相に */
+html[data-theme="dark"] .scale-tick.sat .sub, html[data-theme="dark"] .scale-tick.sat .wd { color: #60a5fa; }
+html[data-theme="dark"] .scale-tick.sun .sub, html[data-theme="dark"] .scale-tick.sun .wd { color: #f87171; }
+/* 背景シェード・ホバーの薄色を暗色向けに */
+html[data-theme="dark"] .grid-weekend { background: rgba(96, 165, 250, .08); }
+html[data-theme="dark"] .grid-holiday { background: rgba(248, 113, 113, .10); }
+html[data-theme="dark"] .gantt-row:hover { background: rgba(148, 163, 184, .08); }
+/* トースト/ドラッグ中ツールチップは背景と沈まないよう一段明るく */
+html[data-theme="dark"] .toast, html[data-theme="dark"] .drag-tip { background: #334155; }
+/* モーダルの背景幕は濃く */
+html[data-theme="dark"] .modal-host, html[data-theme="dark"] .panel-host { background: rgba(0, 0, 0, .55); }
+/* ドラッグゴースト等の白系アウトラインを控えめに */
+html[data-theme="dark"] .bar.dragging, html[data-theme="dark"] .bar-ghost { outline-color: rgba(226, 232, 240, .8); }
+
 /* ===== 印刷 (PDF / 画像出力) ===== */
 @media print {
+  /* ダークモード中でも印刷は常にライト配色で出す */
+  html[data-theme="dark"] {
+    color-scheme: light;
+    --bg: #f4f6f8; --surface: #ffffff; --surface-2: #f8fafc;
+    --border: #e2e8f0; --border-strong: #cbd5e1;
+    --text: #1e2732; --text-muted: #64748b; --text-faint: #94a3b8;
+  }
   #appHeader, #treePane .pane-toolbar, #assistPane, .modal-host, .panel-host, .toast-host,
   .row-actions, #newProjectBtn, #undoBtn, #historyBtn, #exportBtn { display: none !important; }
   #appBody { display: block; }
