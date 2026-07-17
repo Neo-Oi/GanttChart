@@ -94,6 +94,9 @@ const Schedules = (() => {
       const dotClass = r.level === 2 ? effectiveStatus(n) : `lv${r.level}`;
       const sp = effectiveSpan(n);
       const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
+      // 状態表示: 親(子あり)は進捗%、末端タスクは状態ラベル(未着手/進行中/完了)。
+      const effSt = effectiveStatus(n);
+      const statusText = r.hasChildren ? `${progressPercent(n)}%` : statusLabel(effSt);
       // 子を持つノード(スケジュール/タスク持ちサブスケジュール)は展開用の三角。タスクは葉。
       const twist = r.hasChildren
         ? `<button class="twist" data-toggle="${n.id}">${uiState.collapsed[n.id] ? '▶' : '▼'}</button>`
@@ -113,6 +116,7 @@ const Schedules = (() => {
           <span class="num">${nums[n.id] || ''}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
           <span class="meta">${meta}</span>
+          <span class="row-status ${effSt}">${statusText}</span>
           ${persistent}
           <span class="row-actions">
             ${hoverAdd}
@@ -328,6 +332,39 @@ const Schedules = (() => {
     afterChange();
   }
 
+  // 親を「ずらす」: 配下(および自分)で日付を持つノードを、暦日 days ぶん一括で移動する。
+  // 相対的な前後関係は保たれるため、内部の依存関係の再計算は不要。
+  async function shiftSubtree(id, days) {
+    if (!days) return;
+    History.snapshot();
+    const ids = [];
+    (function collect(pid) { for (const c of childrenOf(pid)) { ids.push(c.id); collect(c.id); } })(id);
+    ids.push(id);
+    const root = byId(id);
+    let first = true;
+    for (const nid of ids) {
+      const node = byId(nid);
+      if (!node.startDate && !node.endDate) continue;
+      if (node.startDate) node.startDate = fmtDate(addDays(parseDate(node.startDate), days));
+      if (node.endDate) node.endDate = fmtDate(addDays(parseDate(node.endDate), days));
+      // 履歴には代表として1件だけ記録する。
+      await DB.put('schedules', node, first ? { action: 'edit', label: `「${root.name}」を配下ごと移動` } : undefined);
+      first = false;
+    }
+    await Projects.touch();
+    afterChange();
+  }
+
+  // 進捗率(配下の末端タスクの done=1 / doing=0.5 加重平均、%)。葉なら状態に応じ 0/50/100。
+  function progressPercent(node) {
+    const leaves = [];
+    (function collect(n) { const kids = childrenOf(n.id); if (!kids.length) leaves.push(n); else kids.forEach(collect); })(node);
+    if (!leaves.length) return 0;
+    let sum = 0;
+    for (const l of leaves) { const s = effectiveStatus(l); sum += s === 'done' ? 1 : s === 'doing' ? 0.5 : 0; }
+    return Math.round(sum / leaves.length * 100);
+  }
+
   async function del(id) {
     const node = byId(id);
     const ok = await UI.confirm(`「${node.name}」${hasChildren(id) ? 'と、その配下すべて' : ''}を削除します。よろしいですか?`, { danger: true, okLabel: '削除' });
@@ -368,6 +405,6 @@ const Schedules = (() => {
   return {
     childrenOf, byId, levelOf, hasChildren, computeNumbering, flattenForDisplay,
     effectiveStatus, effectiveSpan, renderTree, openEditor, add, saveNode, del, reorder,
-    updateDates, setStatus, LEVEL_NAME, MAX_LEVEL, statusLabel,
+    updateDates, setStatus, shiftSubtree, progressPercent, LEVEL_NAME, MAX_LEVEL, statusLabel,
   };
 })();

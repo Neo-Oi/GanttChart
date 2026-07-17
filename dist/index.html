@@ -247,6 +247,11 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
 .tree-row .meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+/* WBSの状態表示: 親は進捗%、末端タスクは 未着手/進行中/完了。進行具合を一目で。 */
+.tree-row .row-status { flex: 0 0 auto; min-width: 38px; text-align: right; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tree-row .row-status.todo { color: #94a3b8; }
+.tree-row .row-status.doing { color: var(--accent-strong); }
+.tree-row .row-status.done { color: #16a34a; }
 .tree-row .row-actions { display: none; gap: 2px; }
 .tree-row:hover .row-actions { display: inline-flex; }
 .icon-btn {
@@ -303,10 +308,11 @@ body[data-mode="normal"] #assistPane { display: none; }
 .grid-holiday { position: absolute; top: 0; bottom: 0; background: rgba(239, 68, 68, .06); }
 
 .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 6; pointer-events: none; }
+/* 今日/マイルストーンの旗はヘッダー(目盛りの一段上)の下端に置き、行のバーと重ならないようにする。 */
 .today-flag {
-  position: absolute; top: 0; transform: translateX(-50%);
+  position: absolute; bottom: 1px; transform: translateX(-50%);
   background: #ef4444; color: #fff; font-size: 10px; font-weight: 700;
-  padding: 1px 6px; border-radius: 0 0 5px 5px; z-index: 7; pointer-events: none;
+  padding: 1px 6px; border-radius: 5px 5px 0 0; z-index: 9; pointer-events: none;
 }
 
 .gantt-row { position: relative; height: var(--row-h); border-bottom: 1px solid var(--border); }
@@ -377,16 +383,16 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
-/* マイルストーン: 今日線と同様、チャートを縦に貫く線 + 上部のフラグ(スクロール位置に関係なく見える)。 */
+/* マイルストーン: チャートを縦に貫く点線(グリッド内) + ヘッダー下端の旗。 */
 .milestone-line {
   position: absolute; top: 0; width: 0; z-index: 5; pointer-events: none;
   border-left: 2px dashed #d97706;
 }
 .milestone-flag {
-  position: absolute; top: 0; transform: translateX(-50%);
-  background: #f59e0b; color: #fff; border: 0; z-index: 8;
+  position: absolute; bottom: 1px; transform: translateX(-50%);
+  background: #f59e0b; color: #fff; border: 0; z-index: 10;
   font-size: 10px; font-weight: 700; white-space: nowrap;
-  padding: 2px 8px; border-radius: 0 0 6px 6px;
+  padding: 2px 8px; border-radius: 5px 5px 0 0;
   cursor: pointer; box-shadow: var(--shadow-sm);
 }
 .milestone-flag:hover { background: #d97706; }
@@ -551,13 +557,21 @@ body[data-mode="normal"] #assistPane { display: none; }
    被らない程度に絞る。横方向だけリサイズ可(縦は常に画面いっぱいのまま)。 */
 .notes-float {
   position: fixed; right: 0; top: var(--header-h); bottom: 0;
-  width: 300px; min-width: 260px; max-width: 34vw;
+  width: 600px; min-width: 360px; max-width: 70vw;
   background: var(--surface); border-left: 1px solid var(--border-strong);
   box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
   overflow: hidden; resize: horizontal;
 }
 .notes-float.hidden { display: none; }
 .notes-float .panel-body { overflow: hidden; }
+
+/* ノーマルモード: メモは常時表示(ボタン非表示)。ガント本体と重ならないよう
+   その分だけ本体側に右余白を確保し、パネル幅は固定(横リサイズ不可)にする。 */
+body[data-mode="normal"] #notesBtn { display: none; }
+body[data-mode="normal"] #appBody { padding-right: 600px; }
+body[data-mode="normal"] #progressStrip { padding-right: 616px; }
+body[data-mode="normal"] .notes-float { width: 600px; min-width: 600px; max-width: 600px; resize: none; }
+body[data-mode="normal"] #notesFloatClose { display: none; } /* 常時表示なので閉じるボタンは隠す */
 
 .notes-body { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
 .notes-editor {
@@ -1305,11 +1319,18 @@ const NotesPanel = (() => {
     else close();
   }
 
-  // 他の操作による全体再描画に追随する。開いていなければ何もしない。
-  // プロジェクトが切り替わっていれば中身を新しいプロジェクトのメモに作り直す
-  // (切り替わっていなければ、入力中の未保存テキストを壊さないよう何もしない)。
+  // 他の操作による全体再描画に追随する。
+  // ノーマルモードでは常時表示(自動で開く)。アシストモードでは、開いているときだけ内容を追随
+  // (閉じているなら未保存テキストを壊さないよう何もしない)。
+  // どちらも、プロジェクトが切り替わったときだけ中身を作り直す。
   function refresh() {
     if (!state.project) { builtForProjectId = null; return; }
+    const normal = document.body.dataset.mode === 'normal';
+    if (normal) {
+      if (builtForProjectId !== state.project.id) build();
+      host().classList.remove('hidden');   // ノーマルは常に表示
+      return;
+    }
     if (host().classList.contains('hidden')) return;
     if (builtForProjectId !== state.project.id) build();
   }
@@ -1415,6 +1436,9 @@ const Schedules = (() => {
       const dotClass = r.level === 2 ? effectiveStatus(n) : `lv${r.level}`;
       const sp = effectiveSpan(n);
       const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
+      // 状態表示: 親(子あり)は進捗%、末端タスクは状態ラベル(未着手/進行中/完了)。
+      const effSt = effectiveStatus(n);
+      const statusText = r.hasChildren ? `${progressPercent(n)}%` : statusLabel(effSt);
       // 子を持つノード(スケジュール/タスク持ちサブスケジュール)は展開用の三角。タスクは葉。
       const twist = r.hasChildren
         ? `<button class="twist" data-toggle="${n.id}">${uiState.collapsed[n.id] ? '▶' : '▼'}</button>`
@@ -1434,6 +1458,7 @@ const Schedules = (() => {
           <span class="num">${nums[n.id] || ''}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
           <span class="meta">${meta}</span>
+          <span class="row-status ${effSt}">${statusText}</span>
           ${persistent}
           <span class="row-actions">
             ${hoverAdd}
@@ -1649,6 +1674,39 @@ const Schedules = (() => {
     afterChange();
   }
 
+  // 親を「ずらす」: 配下(および自分)で日付を持つノードを、暦日 days ぶん一括で移動する。
+  // 相対的な前後関係は保たれるため、内部の依存関係の再計算は不要。
+  async function shiftSubtree(id, days) {
+    if (!days) return;
+    History.snapshot();
+    const ids = [];
+    (function collect(pid) { for (const c of childrenOf(pid)) { ids.push(c.id); collect(c.id); } })(id);
+    ids.push(id);
+    const root = byId(id);
+    let first = true;
+    for (const nid of ids) {
+      const node = byId(nid);
+      if (!node.startDate && !node.endDate) continue;
+      if (node.startDate) node.startDate = fmtDate(addDays(parseDate(node.startDate), days));
+      if (node.endDate) node.endDate = fmtDate(addDays(parseDate(node.endDate), days));
+      // 履歴には代表として1件だけ記録する。
+      await DB.put('schedules', node, first ? { action: 'edit', label: `「${root.name}」を配下ごと移動` } : undefined);
+      first = false;
+    }
+    await Projects.touch();
+    afterChange();
+  }
+
+  // 進捗率(配下の末端タスクの done=1 / doing=0.5 加重平均、%)。葉なら状態に応じ 0/50/100。
+  function progressPercent(node) {
+    const leaves = [];
+    (function collect(n) { const kids = childrenOf(n.id); if (!kids.length) leaves.push(n); else kids.forEach(collect); })(node);
+    if (!leaves.length) return 0;
+    let sum = 0;
+    for (const l of leaves) { const s = effectiveStatus(l); sum += s === 'done' ? 1 : s === 'doing' ? 0.5 : 0; }
+    return Math.round(sum / leaves.length * 100);
+  }
+
   async function del(id) {
     const node = byId(id);
     const ok = await UI.confirm(`「${node.name}」${hasChildren(id) ? 'と、その配下すべて' : ''}を削除します。よろしいですか?`, { danger: true, okLabel: '削除' });
@@ -1689,7 +1747,7 @@ const Schedules = (() => {
   return {
     childrenOf, byId, levelOf, hasChildren, computeNumbering, flattenForDisplay,
     effectiveStatus, effectiveSpan, renderTree, openEditor, add, saveNode, del, reorder,
-    updateDates, setStatus, LEVEL_NAME, MAX_LEVEL, statusLabel,
+    updateDates, setStatus, shiftSubtree, progressPercent, LEVEL_NAME, MAX_LEVEL, statusLabel,
   };
 })();
 
@@ -2020,7 +2078,7 @@ const Gantt = (() => {
       if (show) ticks.push(`<div class="scale-tick ${major ? 'major' : ''}" style="left:${dateToX(d)}px">${label}<span class="sub">${sub}</span></div>`);
       d = addDays(d, 1);
     }
-    return `<div class="gantt-scale" style="width:${scale.width}px">${ticks.join('')}</div>`;
+    return `<div class="gantt-scale" style="width:${scale.width}px">${ticks.join('')}${renderFlags()}</div>`;
   }
 
   // --- グリッド(縦線・週末/祝日シェード・今日線)---
@@ -2046,26 +2104,38 @@ const Gantt = (() => {
       }
       d = addDays(d, 1);
     }
-    // 今日線
+    // 今日線(縦線のみ。フラグはヘッダー側 renderScale で出す)
     const today = todayDate();
     if (dayDiff(scale.origin, today) >= 0 && dayDiff(today, scale.end) >= 0) {
       const tx = dateToX(today) + scale.pxPerDay / 2;
-      parts.push(`<div class="today-flag" style="left:${tx}px">今日</div>`);
       parts.push(`<div class="today-line" style="left:${tx}px;height:${totalH}px"></div>`);
     }
-    // マイルストーン(今日線と同じ「確実に見える」描画経路で出す)。
-    // 複数が近接しても重ならないよう、フラグは3段でずらす。
-    state.milestones.forEach((m, i) => {
+    // マイルストーン線(縦線のみ。フラグはヘッダー側 renderScale で出す)
+    state.milestones.forEach((m) => {
       const d = parseDate(m.date);
-      // 表示範囲: origin <= d <= end。origin より前(dayDiff(origin,d)<0)、
-      // または end より後(dayDiff(d,end)<0 ＝ end-d<0)のときだけスキップする。
       if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) < 0) return;
       const mx = dateToX(d) + scale.pxPerDay / 2;
-      const topOffset = (i % 3) * 19;
       parts.push(`<div class="milestone-line" style="left:${mx}px;height:${totalH}px"></div>`);
-      parts.push(`<button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${mx}px;top:${topOffset}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`);
     });
     return parts.join('');
+  }
+
+  // ヘッダー(目盛りの1段上)に出す旗: 今日 + マイルストーン。
+  // グリッド本体ではなくヘッダーに置くことで、行のバーと重ならず常に見える。
+  function renderFlags() {
+    const out = [];
+    const today = todayDate();
+    if (dayDiff(scale.origin, today) >= 0 && dayDiff(today, scale.end) >= 0) {
+      const tx = dateToX(today) + scale.pxPerDay / 2;
+      out.push(`<div class="today-flag" style="left:${tx}px">今日</div>`);
+    }
+    state.milestones.forEach((m) => {
+      const d = parseDate(m.date);
+      if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) < 0) return;
+      const mx = dateToX(d) + scale.pxPerDay / 2;
+      out.push(`<button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${mx}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`);
+    });
+    return out.join('');
   }
 
   // --- バー行 ---
@@ -2097,7 +2167,9 @@ const Gantt = (() => {
                      <span class="grip left"></span>${label}<span class="grip right"></span>
                    </div>`;
           } else {
-            bar = `<div class="bar summary ${lv}" style="left:${left}px;width:${width}px">${label}</div>`;
+            // 子を持つ親(サマリー): 期間の伸縮は不可(子から集計)だが、
+            // バー本体をドラッグして配下ごと「ずらす」ことはできる。グリップ(端リサイズ)は付けない。
+            bar = `<div class="bar summary ${lv}" data-bar="${n.id}" data-summary="1" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}(ドラッグで配下ごと移動)">${label}</div>`;
           }
         }
       }
@@ -2143,7 +2215,7 @@ const Gantt = (() => {
       return;
     }
     const totalH = Math.max(rows.length * ROW_H, ROW_H * 3);
-    // マイルストーンの線・フラグは renderGridDecor 内(今日線と同じ経路)で描画される。
+    // 今日/マイルストーンの縦線は renderGridDecor(グリッド内)、旗は renderScale(ヘッダー)で描く。
     body.innerHTML = `
       <div class="gantt-grid" style="width:${scale.width}px;height:${totalH}px;position:relative">
         ${renderGridDecor(totalH)}
@@ -2159,7 +2231,8 @@ const Gantt = (() => {
     if (!node) return;
     const sp = Schedules.effectiveSpan(node);
     if (!sp) return;
-    const mode = e.target.classList.contains('grip')
+    const isSummary = !!barEl.dataset.summary; // 親(子あり): 移動のみ、伸縮不可
+    const mode = (!isSummary && e.target.classList.contains('grip'))
       ? (e.target.classList.contains('left') ? 'resize-l' : 'resize-r')
       : 'move';
     const startX = e.clientX;
@@ -2227,7 +2300,12 @@ const Gantt = (() => {
       isDragging = false; // 以降の renderGantt() を再び有効にする(この後の再描画呼び出しより前に)
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
-        Schedules.updateDates(id, p.start, p.end);
+        if (isSummary) {
+          // 親は移動のみ: 移動量(暦日)ぶん、配下すべてを一括でずらす。
+          Schedules.shiftSubtree(id, dayDiff(origStart, parseDate(p.start)));
+        } else {
+          Schedules.updateDates(id, p.start, p.end);
+        }
       } else {
         // 変化なし(またはスナップで元に戻った)ときは、日付グリッドの位置に戻す。
         renderGantt();
@@ -2674,6 +2752,11 @@ function wireGantt() {
   body.addEventListener('dblclick', (e) => {
     const bar = e.target.closest('.bar[data-bar]');
     if (bar) Schedules.openEditor({ id: bar.dataset.bar });
+  });
+  // マイルストーンの旗はヘッダー(#ganttHeader)に移動したので、こちらでもクリックを拾う。
+  document.getElementById('ganttHeader').addEventListener('click', (e) => {
+    const ms = e.target.closest('[data-ms]');
+    if (ms) Milestones.openEditor(ms.dataset.ms);
   });
 }
 

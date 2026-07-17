@@ -89,11 +89,18 @@ const NotesPanel = (() => {
     else close();
   }
 
-  // 他の操作による全体再描画に追随する。開いていなければ何もしない。
-  // プロジェクトが切り替わっていれば中身を新しいプロジェクトのメモに作り直す
-  // (切り替わっていなければ、入力中の未保存テキストを壊さないよう何もしない)。
+  // 他の操作による全体再描画に追随する。
+  // ノーマルモードでは常時表示(自動で開く)。アシストモードでは、開いているときだけ内容を追随
+  // (閉じているなら未保存テキストを壊さないよう何もしない)。
+  // どちらも、プロジェクトが切り替わったときだけ中身を作り直す。
   function refresh() {
     if (!state.project) { builtForProjectId = null; return; }
+    const normal = document.body.dataset.mode === 'normal';
+    if (normal) {
+      if (builtForProjectId !== state.project.id) build();
+      host().classList.remove('hidden');   // ノーマルは常に表示
+      return;
+    }
     if (host().classList.contains('hidden')) return;
     if (builtForProjectId !== state.project.id) build();
   }

@@ -79,7 +79,7 @@ const Gantt = (() => {
       if (show) ticks.push(`<div class="scale-tick ${major ? 'major' : ''}" style="left:${dateToX(d)}px">${label}<span class="sub">${sub}</span></div>`);
       d = addDays(d, 1);
     }
-    return `<div class="gantt-scale" style="width:${scale.width}px">${ticks.join('')}</div>`;
+    return `<div class="gantt-scale" style="width:${scale.width}px">${ticks.join('')}${renderFlags()}</div>`;
   }
 
   // --- グリッド(縦線・週末/祝日シェード・今日線)---
@@ -105,26 +105,38 @@ const Gantt = (() => {
       }
       d = addDays(d, 1);
     }
-    // 今日線
+    // 今日線(縦線のみ。フラグはヘッダー側 renderScale で出す)
     const today = todayDate();
     if (dayDiff(scale.origin, today) >= 0 && dayDiff(today, scale.end) >= 0) {
       const tx = dateToX(today) + scale.pxPerDay / 2;
-      parts.push(`<div class="today-flag" style="left:${tx}px">今日</div>`);
       parts.push(`<div class="today-line" style="left:${tx}px;height:${totalH}px"></div>`);
     }
-    // マイルストーン(今日線と同じ「確実に見える」描画経路で出す)。
-    // 複数が近接しても重ならないよう、フラグは3段でずらす。
-    state.milestones.forEach((m, i) => {
+    // マイルストーン線(縦線のみ。フラグはヘッダー側 renderScale で出す)
+    state.milestones.forEach((m) => {
       const d = parseDate(m.date);
-      // 表示範囲: origin <= d <= end。origin より前(dayDiff(origin,d)<0)、
-      // または end より後(dayDiff(d,end)<0 ＝ end-d<0)のときだけスキップする。
       if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) < 0) return;
       const mx = dateToX(d) + scale.pxPerDay / 2;
-      const topOffset = (i % 3) * 19;
       parts.push(`<div class="milestone-line" style="left:${mx}px;height:${totalH}px"></div>`);
-      parts.push(`<button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${mx}px;top:${topOffset}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`);
     });
     return parts.join('');
+  }
+
+  // ヘッダー(目盛りの1段上)に出す旗: 今日 + マイルストーン。
+  // グリッド本体ではなくヘッダーに置くことで、行のバーと重ならず常に見える。
+  function renderFlags() {
+    const out = [];
+    const today = todayDate();
+    if (dayDiff(scale.origin, today) >= 0 && dayDiff(today, scale.end) >= 0) {
+      const tx = dateToX(today) + scale.pxPerDay / 2;
+      out.push(`<div class="today-flag" style="left:${tx}px">今日</div>`);
+    }
+    state.milestones.forEach((m) => {
+      const d = parseDate(m.date);
+      if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) < 0) return;
+      const mx = dateToX(d) + scale.pxPerDay / 2;
+      out.push(`<button type="button" class="milestone-flag" data-ms="${m.id}" style="left:${mx}px" title="${escapeHtml(m.name)} (${m.date})">◆ ${escapeHtml(m.name)}</button>`);
+    });
+    return out.join('');
   }
 
   // --- バー行 ---
@@ -156,7 +168,9 @@ const Gantt = (() => {
                      <span class="grip left"></span>${label}<span class="grip right"></span>
                    </div>`;
           } else {
-            bar = `<div class="bar summary ${lv}" style="left:${left}px;width:${width}px">${label}</div>`;
+            // 子を持つ親(サマリー): 期間の伸縮は不可(子から集計)だが、
+            // バー本体をドラッグして配下ごと「ずらす」ことはできる。グリップ(端リサイズ)は付けない。
+            bar = `<div class="bar summary ${lv}" data-bar="${n.id}" data-summary="1" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}(ドラッグで配下ごと移動)">${label}</div>`;
           }
         }
       }
@@ -202,7 +216,7 @@ const Gantt = (() => {
       return;
     }
     const totalH = Math.max(rows.length * ROW_H, ROW_H * 3);
-    // マイルストーンの線・フラグは renderGridDecor 内(今日線と同じ経路)で描画される。
+    // 今日/マイルストーンの縦線は renderGridDecor(グリッド内)、旗は renderScale(ヘッダー)で描く。
     body.innerHTML = `
       <div class="gantt-grid" style="width:${scale.width}px;height:${totalH}px;position:relative">
         ${renderGridDecor(totalH)}
@@ -218,7 +232,8 @@ const Gantt = (() => {
     if (!node) return;
     const sp = Schedules.effectiveSpan(node);
     if (!sp) return;
-    const mode = e.target.classList.contains('grip')
+    const isSummary = !!barEl.dataset.summary; // 親(子あり): 移動のみ、伸縮不可
+    const mode = (!isSummary && e.target.classList.contains('grip'))
       ? (e.target.classList.contains('left') ? 'resize-l' : 'resize-r')
       : 'move';
     const startX = e.clientX;
@@ -286,7 +301,12 @@ const Gantt = (() => {
       isDragging = false; // 以降の renderGantt() を再び有効にする(この後の再描画呼び出しより前に)
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
-        Schedules.updateDates(id, p.start, p.end);
+        if (isSummary) {
+          // 親は移動のみ: 移動量(暦日)ぶん、配下すべてを一括でずらす。
+          Schedules.shiftSubtree(id, dayDiff(origStart, parseDate(p.start)));
+        } else {
+          Schedules.updateDates(id, p.start, p.end);
+        }
       } else {
         // 変化なし(またはスナップで元に戻った)ときは、日付グリッドの位置に戻す。
         renderGantt();
