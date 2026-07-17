@@ -28,11 +28,12 @@ const Projects = (() => {
     Store.renderAll();
   }
 
-  async function create(name, mode, templateKey, notesMd) {
+  async function create(name, mode, templateKey, notesMd, startDate, endDate) {
     const now = Date.now();
     const project = {
       id: uid('p'), name: name || '新しいプロジェクト', mode: mode || 'assist',
-      notesMd: notesMd || '', createdAt: now, updatedAt: now,
+      notesMd: notesMd || '', startDate: startDate || '', endDate: endDate || '',
+      createdAt: now, updatedAt: now,
     };
     await DB.put('projects', project);
     if (templateKey && templateKey !== 'blank') {
@@ -43,12 +44,18 @@ const Projects = (() => {
     return project;
   }
 
-  async function rename(name) {
+  // プロジェクトの基本設定(名称・期間)を更新する。期間は上限3年(呼び出し側で検証済み)。
+  async function updateSettings(patch) {
     if (!state.project) return;
-    const p = { ...state.project, name, updatedAt: Date.now() };
+    const p = { ...state.project, ...patch, updatedAt: Date.now() };
     await DB.put('projects', p);
     await loadAll();
-    Store.setState({ project: p }, ['header']);
+    Store.setState({ project: p }, []);
+    Store.renderAll();
+  }
+
+  async function rename(name) {
+    return updateSettings({ name });
   }
 
   // プロジェクトのメモ(Markdown。タスクの洗い出し・下書き用)を更新する。
@@ -98,5 +105,5 @@ const Projects = (() => {
     return p.id;
   }
 
-  return { loadAll, select, create, rename, updateNotes, setMode, touch, remove, ensureOne };
+  return { loadAll, select, create, rename, updateNotes, updateSettings, setMode, touch, remove, ensureOne };
 })();

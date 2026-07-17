@@ -50,6 +50,19 @@ function isWeekend(d) {
   return w === 0 || w === 6;
 }
 
+// d の years 年後の同月同日(期間上限の判定に使う)。
+function addYears(d, years) {
+  return new Date(d.getFullYear() + years, d.getMonth(), d.getDate());
+}
+
+// 開始〜終了の期間が maxYears 年以内か(両方指定されている場合のみ判定)。
+function periodWithinYears(startStr, endStr, maxYears) {
+  const s = parseDate(startStr), e = parseDate(endStr);
+  if (!s || !e) return true;
+  if (dayDiff(s, e) < 0) return false;         // 逆転はNG
+  return dayDiff(e, addYears(s, maxYears)) >= 0; // e <= s + maxYears年
+}
+
 function clamp(n, lo, hi) { return Math.max(lo, Math.min(hi, n)); }
 
 function fmtRangeLabel(d) {

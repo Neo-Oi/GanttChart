@@ -189,6 +189,18 @@ body[data-mode="normal"] .mode-opt[data-mode="normal"] {
   min-width: 0;
   background: var(--surface-2);
 }
+/* スケジュール欄とガント欄の間の縦スクロールバー */
+.vscroll {
+  flex: 0 0 14px; position: relative; background: var(--surface-2);
+  border-right: 1px solid var(--border); border-left: 1px solid var(--border);
+}
+.vscroll.hidden { display: none; }
+.vscroll-thumb {
+  position: absolute; left: 3px; right: 3px; top: 0; min-height: 30px;
+  background: var(--border-strong); border-radius: 6px; cursor: grab;
+}
+.vscroll-thumb:hover { background: var(--accent-line); }
+.vscroll-thumb:active { cursor: grabbing; background: var(--accent); }
 #assistPane {
   flex: 0 0 var(--assist-w);
   border-left: 1px solid var(--border);
@@ -333,6 +345,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 .grid-holiday { position: absolute; top: 0; bottom: 0; background: rgba(239, 68, 68, .06); }
 
 .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 6; pointer-events: none; }
+/* プロジェクト期間の境界(開始/終了)。テーマ色の太めの点線 + ヘッダー旗。 */
+.project-line { position: absolute; top: 0; width: 0; z-index: 5; pointer-events: none; border-left: 2px dashed var(--accent-strong); opacity: .7; }
+.project-flag {
+  position: absolute; bottom: 1px; transform: translateX(-50%);
+  background: var(--accent-strong); color: #fff; z-index: 9;
+  font-size: 9px; font-weight: 700; white-space: nowrap;
+  padding: 2px 7px; border-radius: 5px 5px 0 0; pointer-events: none;
+}
 /* 今日/マイルストーンの旗はヘッダー(目盛りの一段上)の下端に置き、行のバーと重ならないようにする。 */
 .today-flag {
   position: absolute; bottom: 1px; transform: translateX(-50%);
