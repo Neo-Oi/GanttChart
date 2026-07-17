@@ -105,7 +105,7 @@ const Schedules = (() => {
       const hoverAdd = r.level < MAX_LEVEL
         ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : '';
       return `
-        <div class="tree-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
+        <div class="tree-row lv${r.level} ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
              style="padding-left:${8 + r.level * 16}px">
           ${twist}
           <span class="status-dot ${st}"></span>
