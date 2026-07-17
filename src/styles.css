@@ -31,6 +31,10 @@
   --tone-doing: #fbbf24;
   --tone-done: #4ade80;
   --tone-done-strong: #15803d;
+  --tone-done-soft: #d7f5e3;   /* 完了バーの淡色背景(モード別に上書き) */
+  /* 文字用アクセント。ライトでは accent-strong と同じ。ダークでは暗い背景でも
+     読めるよう明るい派生色に上書きする(背景用の accent-strong はライトと同一に保つ)。 */
+  --accent-text: var(--accent-strong);
 
   /* アクセント(モードで切替。既定=アシスト/緑) */
   --accent: #0f9d6b;
@@ -49,6 +53,7 @@ body[data-mode="assist"] {
   /* 「完了」はテーマに合わせて緑系 */
   --tone-done: #4ade80;
   --tone-done-strong: #15803d;
+  --tone-done-soft: #d7f5e3;
 }
 
 /* ノーマルモード: 青基調。 */
@@ -60,6 +65,7 @@ body[data-mode="normal"] {
   /* 「完了」はテーマに合わせて青系 */
   --tone-done: #60a5fa;
   --tone-done-strong: #1d4ed8;
+  --tone-done-soft: #dbeafe;
 }
 
 * { box-sizing: border-box; }
@@ -96,7 +102,7 @@ button { font-family: inherit; cursor: pointer; }
 .progress-strip .pr-label { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
 .progress-strip .pr-track { flex: 1 1 auto; height: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
 .progress-strip .pr-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-strong)); border-radius: 999px; transition: width .3s ease; }
-.progress-strip .pr-pct { font-size: 13px; font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+.progress-strip .pr-pct { font-size: 13px; font-weight: 700; color: var(--accent-text); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
 .progress-strip .pr-sub { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 
 /* ===== ヘッダー ===== */
@@ -131,7 +137,7 @@ button { font-family: inherit; cursor: pointer; }
   font-weight: 700;
   font-size: 17px;
   letter-spacing: .2px;
-  color: var(--accent-strong);
+  color: var(--accent-text);
   padding-right: 4px;
 }
 
@@ -154,7 +160,7 @@ button { font-family: inherit; cursor: pointer; }
   border: 1px solid var(--accent-line);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--accent-strong);
+  color: var(--accent-text);
   font-size: 13px;
   font-weight: 600;
   transition: background .12s, border-color .12s, color .12s;
@@ -252,7 +258,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   border: 1px solid var(--accent);
   border-radius: var(--radius-sm);
   background: var(--accent-soft);
-  color: var(--accent-strong);
+  color: var(--accent-text);
   font-size: 12px;
   font-weight: 600;
 }
@@ -273,7 +279,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   cursor: default;
 }
 /* WBS(ツリー)も、ガントのサマリーバーと同じ配色ルール: 親(スケジュール)=テーマ色、子(サブスケジュール)=グレー。 */
-.tree-row.lv0 { border-left-color: var(--accent-strong); }
+.tree-row.lv0 { border-left-color: var(--accent-text); }
 .tree-row.lv1 { border-left-color: #94a3b8; }
 .tree-row:hover { background: var(--surface-2); }
 .tree-row.selected { background: var(--accent-soft); }
@@ -287,7 +293,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .num { color: var(--text-faint); font-size: 11px; min-width: 34px; font-variant-numeric: tabular-nums; }
 .tree-row .name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
 .tree-spacer { flex: 1 1 auto; min-width: 6px; }
-.tree-row .name.lv0 { font-weight: 700; color: var(--accent-strong); }
+.tree-row .name.lv0 { font-weight: 700; color: var(--accent-text); }
 .tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
 /* 名前の横の実稼働日数 */
@@ -323,12 +329,12 @@ body[data-mode="normal"] #assistPane { display: none; }
   background: transparent; color: var(--text-muted); font-size: 13px;
   display: inline-flex; align-items: center; justify-content: center;
 }
-.icon-btn:hover { background: var(--accent-soft); color: var(--accent-strong); }
+.icon-btn:hover { background: var(--accent-soft); color: var(--accent-text); }
 
 .task-chip {
   flex: 0 0 auto; height: 22px; padding: 0 9px; margin-left: 2px;
   border: 1px solid var(--accent-line); border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent-strong);
+  background: var(--accent-soft); color: var(--accent-text);
   font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
 }
 .task-chip:hover { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
@@ -449,7 +455,13 @@ body[data-mode="normal"] #assistPane { display: none; }
 .bar.lv2[data-bar]:hover .grip::after { border-color: rgba(30, 41, 59, .55); }
 .bar.lv2.todo { background: var(--tone-todo); }
 .bar.lv2.doing { background: var(--tone-doing); }
-.bar.lv2.done { background: var(--tone-done); }
+/* 完了は「終わった感」の淡色+テーマ色の枠。親のビビッドなテーマ色バーと明確に区別する。
+   ラベルには ✓ が付く(gantt.js)ので、色覚に依存せず判別できる。 */
+.bar.lv2.done {
+  background: var(--tone-done-soft);
+  color: var(--tone-done-strong);
+  box-shadow: inset 0 0 0 1.5px var(--tone-done);
+}
 
 /* サマリー(子を持つスケジュール/サブスケジュール): 上記の lv0/lv1 の色を継承しつつ、非対話・端に三角を付ける。 */
 .bar.summary {
@@ -489,7 +501,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 /* ===== アシストガイド ===== */
 .assist-pane { background: linear-gradient(180deg, var(--accent-soft), var(--surface) 140px); }
 .assist-head { padding: 18px 18px 8px; }
-.assist-head h2 { margin: 0 0 4px; font-size: 15px; color: var(--accent-strong); }
+.assist-head h2 { margin: 0 0 4px; font-size: 15px; color: var(--accent-text); }
 .assist-head p { margin: 0; font-size: 12px; color: var(--text-muted); }
 
 .guide-steps { list-style: none; margin: 12px 0; padding: 0 12px; }
@@ -511,7 +523,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   font-size: 12px; color: transparent; font-weight: 700;
 }
 .guide-step.done .guide-check { background: var(--accent); border-color: var(--accent); color: #fff; }
-.guide-step.action .guide-check.act { border-color: var(--accent); color: var(--accent-strong); font-weight: 700; }
+.guide-step.action .guide-check.act { border-color: var(--accent); color: var(--accent-text); font-weight: 700; }
 .guide-step.active .guide-check { border-color: var(--accent); }
 .guide-body h3 { margin: 0 0 3px; font-size: 13px; }
 .guide-body p { margin: 0; font-size: 12px; color: var(--text-muted); }
@@ -520,7 +532,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 .assist-tip {
   margin: 4px 12px 18px; padding: 12px; border-radius: var(--radius);
   background: var(--accent-soft); border: 1px dashed var(--accent-line);
-  font-size: 12px; color: var(--accent-strong);
+  font-size: 12px; color: var(--accent-text);
 }
 
 /* ===== モーダル / パネル ===== */
@@ -561,7 +573,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 .panel-head h2 { margin: 0; font-size: 15px; }
 .panel-body { padding: 16px 20px; flex: 1 1 auto; overflow-y: auto; }
 .panel-sub { flex: 0 0 auto; padding: 12px 20px; background: var(--accent-soft); border-bottom: 1px solid var(--border); }
-.panel-sub .tp-subname { font-size: 14px; font-weight: 700; color: var(--accent-strong); }
+.panel-sub .tp-subname { font-size: 14px; font-weight: 700; color: var(--accent-text); }
 .panel-sub .tp-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .panel-foot { flex: 0 0 auto; padding: 14px 20px; border-top: 1px solid var(--border); }
 
@@ -605,7 +617,7 @@ body[data-mode="normal"] #assistPane { display: none; }
 .btn {
   height: 38px; padding: 0 18px; border-radius: var(--radius-sm);
   border: 1px solid var(--accent-line); background: var(--surface);
-  font-size: 13px; font-weight: 600; color: var(--accent-strong);
+  font-size: 13px; font-weight: 600; color: var(--accent-text);
 }
 .btn:hover { background: var(--accent-soft); border-color: var(--accent); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
@@ -677,7 +689,7 @@ body[data-mode="normal"] #notesFloatClose { display: none; }
 .notes-items { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; min-height: 0; }
 .notes-item { text-align: left; border: 1px solid var(--border); background: var(--surface); border-radius: 6px; padding: 6px 8px; font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notes-item:hover { border-color: var(--border-strong); }
-.notes-item.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); font-weight: 700; }
+.notes-item.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); font-weight: 700; }
 .notes-empty { color: var(--text-faint); font-size: 12px; margin: 4px 2px; }
 
 .notes-main { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; padding: 10px; min-width: 0; }
@@ -738,18 +750,20 @@ html[data-theme="dark"] {
   --shadow-md: 0 4px 12px rgba(0, 0, 0, .4), 0 2px 4px rgba(0, 0, 0, .3);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, .55);
 }
-/* アクセント: ライトモードと同じ色相ファミリーで統一する(緑が別物に見えないように)。
-   --accent はライトと同一。--accent-strong だけ、暗い背景上の文字としても読めるよう
-   同系色の少し明るい段に置き換える。--on-accent は白のまま(ライトと同じ見え方)。 */
+/* アクセント: ライトモードと完全に同一(--accent / --accent-strong とも)。
+   ダークとの差分は背景系(--accent-soft/--accent-line と完了バーの淡色)と、
+   暗い背景上でも読めるようにする文字用の --accent-text だけに絞る。 */
 html[data-theme="dark"] body[data-mode="assist"] {
-  --accent: #0f9d6b; --accent-strong: #12a878;
   --accent-soft: #0e2f24; --accent-line: #1f7a55;
+  --accent-text: #34d399;
   --tone-done-strong: #4ade80; /* 暗い背景では明るい緑を文字色に */
+  --tone-done-soft: #17352a;
 }
 html[data-theme="dark"] body[data-mode="normal"] {
-  --accent: #2563eb; --accent-strong: #3b82f6;
   --accent-soft: #16264d; --accent-line: #2953b8;
+  --accent-text: #60a5fa;
   --tone-done-strong: #60a5fa; /* 暗い背景では明るい青を文字色に */
+  --tone-done-soft: #1a2c50;
 }
 /* 文字色の濃色直書きを、暗い背景で読める明るさに */
 html[data-theme="dark"] .tree-row .name.lv1 { color: #94a3b8; }
