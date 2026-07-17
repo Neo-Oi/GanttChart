@@ -14,6 +14,7 @@
         <span class="hd-logo">GanttChart</span>
         <select id="projectSelect" class="hd-select" title="プロジェクトを切り替え"></select>
         <button id="newProjectBtn" class="hd-btn" title="新しいプロジェクト">＋ 新規</button>
+        <button id="projectMenuBtn" class="hd-btn" title="プロジェクト設定 / 削除">⚙</button>
       </div>
       <div class="hd-center">
         <div id="modeToggle" class="mode-toggle" title="モードを切り替え">
@@ -22,7 +23,7 @@
         </div>
       </div>
       <div class="hd-right">
-        <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ 節目</button>
+        <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ マイルストーン</button>
         <select id="granularitySelect" class="hd-select" title="表示粒度">
           <option value="day">日</option>
           <option value="week">週</option>
@@ -34,6 +35,9 @@
         <button id="exportBtn" class="hd-btn" title="エクスポート / バックアップ">出力</button>
       </div>
     </header>
+
+    <!-- 全体の進捗バー -->
+    <div id="progressStrip" class="progress-strip"></div>
 
     <!-- 本体: 左=ツリー / 中=ガント / 右=アシストガイド -->
     <div id="appBody">

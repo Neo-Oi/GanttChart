@@ -18,6 +18,7 @@
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, .06), 0 1px 3px rgba(15, 23, 42, .08);
   --shadow-md: 0 4px 12px rgba(15, 23, 42, .10), 0 2px 4px rgba(15, 23, 42, .06);
   --shadow-lg: 0 12px 32px rgba(15, 23, 42, .16);
+  --bar-summary: #475569;
   --radius: 10px;
   --radius-sm: 7px;
   --row-h: 38px;
@@ -25,12 +26,12 @@
   --assist-w: 300px;
   --header-h: 56px;
 
-  /* 状態色(タスクのステータス) — アクセント色とは別トーンで衝突を避ける */
+  /* 状態色(タスクのステータス)。進行中はモードのアクセント色に追従する(下で上書き)。 */
   --st-todo: #94a3b8;
   --st-todo-bg: #e2e8f0;
   --st-doing: #38bdf8;
   --st-doing-bg: #bae6fd;
-  --st-done: #34d399;
+  --st-done: #22c55e;
   --st-done-bg: #bbf7d0;
 
   /* アクセント(モードで切替。既定=アシスト/緑) */
@@ -41,20 +42,26 @@
   --on-accent: #ffffff;
 }
 
-/* アシストモード: 緑基調 */
+/* アシストモード: 緑基調。ステータスは同系色の濃淡(未着手=淡 → 進行中 → 完了=濃)。 */
 body[data-mode="assist"] {
   --accent: #0f9d6b;
   --accent-strong: #0b7a54;
   --accent-soft: #e7f8f1;
   --accent-line: #86dcbb;
+  --tone-todo: #c4ecda;   /* 淡(白背景に近い緑) */
+  --tone-doing: #17a878;  /* 中 */
+  --tone-done: #0a5e42;   /* 濃 */
 }
 
-/* ノーマルモード: 青基調 */
+/* ノーマルモード: 青基調。同系色の濃淡。 */
 body[data-mode="normal"] {
   --accent: #2563eb;
   --accent-strong: #1d4ed8;
   --accent-soft: #e8f0fe;
   --accent-line: #9cc0fb;
+  --tone-todo: #cfe0fb;   /* 淡 */
+  --tone-doing: #2f6ff0;  /* 中 */
+  --tone-done: #17379e;   /* 濃 */
 }
 
 * { box-sizing: border-box; }
@@ -71,9 +78,28 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-#app { display: flex; flex-direction: column; height: 100vh; }
+/* アプリ全体をモード色で縁取り(現在のモードが一目で分かる) */
+#app { display: flex; flex-direction: column; height: 100vh; border-top: 3px solid var(--accent); transition: border-color .2s; }
 
 button { font-family: inherit; cursor: pointer; }
+
+/* スクロールバーもテーマに追従 */
+*::-webkit-scrollbar { width: 11px; height: 11px; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 7px; border: 3px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--accent-line); background-clip: padding-box; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* 全体の進捗バー */
+.progress-strip {
+  flex: 0 0 auto; display: flex; align-items: center; gap: 12px;
+  padding: 8px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.progress-strip.hidden { display: none !important; }
+.progress-strip .pr-label { font-size: 12px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+.progress-strip .pr-track { flex: 1 1 auto; height: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; overflow: hidden; }
+.progress-strip .pr-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-strong)); border-radius: 999px; transition: width .3s ease; }
+.progress-strip .pr-pct { font-size: 13px; font-weight: 700; color: var(--accent-strong); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+.progress-strip .pr-sub { font-size: 11px; color: var(--text-faint); white-space: nowrap; }
 
 /* ===== ヘッダー ===== */
 #appHeader {
@@ -235,10 +261,10 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .icon-btn:hover { background: var(--border); color: var(--text); }
 
-.status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; }
-.status-dot.todo { background: var(--st-todo); }
-.status-dot.doing { background: var(--st-doing); }
-.status-dot.done { background: var(--st-done); }
+.status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; border: 1px solid rgba(15,23,42,.12); }
+.status-dot.todo { background: var(--tone-todo); }
+.status-dot.doing { background: var(--tone-doing); }
+.status-dot.done { background: var(--tone-done); }
 
 .tree-empty { padding: 40px 20px; text-align: center; color: var(--text-faint); font-size: 13px; }
 
@@ -297,20 +323,22 @@ body[data-mode="normal"] #assistPane { display: none; }
 .bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
 .bar .grip { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
 .bar .grip.left { left: 0; } .bar .grip.right { right: 0; }
-.bar.todo { background: var(--st-todo); }
-.bar.doing { background: var(--st-doing); }
-.bar.done { background: var(--st-done); }
+/* ステータスは同系色の濃淡。未着手は淡いので文字は濃色にする。 */
+.bar.todo { background: var(--tone-todo); color: #1e293b; }
+.bar.todo .bar-label { text-shadow: none; }
+.bar.doing { background: var(--tone-doing); }
+.bar.done { background: var(--tone-done); }
 
-/* サマリーバー(親) */
+/* サマリーバー(スケジュール/サブスケジュール)は中立の灰色のまま。 */
 .bar.summary {
   top: 14px; height: calc(var(--row-h) - 26px);
-  background: #475569; border-radius: 3px; cursor: default;
-  box-shadow: none; opacity: .92;
+  background: var(--bar-summary); border-radius: 3px; cursor: default;
+  box-shadow: none; opacity: .95;
 }
 .bar.summary::before, .bar.summary::after {
   content: ""; position: absolute; bottom: -5px; width: 0; height: 0;
   border-left: 5px solid transparent; border-right: 5px solid transparent;
-  border-top: 6px solid #475569;
+  border-top: 6px solid var(--bar-summary);
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
@@ -345,8 +373,13 @@ body[data-mode="normal"] #assistPane { display: none; }
 .guide-step {
   display: flex; gap: 10px; padding: 12px; margin-bottom: 8px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: var(--shadow-sm); transition: border-color .15s, box-shadow .15s;
+  box-shadow: var(--shadow-sm); transition: border-color .15s, box-shadow .15s, transform .1s;
+  cursor: pointer; text-align: left; width: 100%; font: inherit; color: inherit;
 }
+.guide-step:hover { border-color: var(--accent-line); transform: translateY(-1px); }
+.guide-step:active { transform: none; }
+.guide-step .go { margin-left: auto; align-self: center; color: var(--text-faint); font-size: 15px; }
+.guide-step:hover .go { color: var(--accent); }
 .guide-step.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .guide-step.done { opacity: .72; }
 .guide-check {
@@ -470,6 +503,7 @@ body[data-mode="normal"] #assistPane { display: none; }
         <span class="hd-logo">GanttChart</span>
         <select id="projectSelect" class="hd-select" title="プロジェクトを切り替え"></select>
         <button id="newProjectBtn" class="hd-btn" title="新しいプロジェクト">＋ 新規</button>
+        <button id="projectMenuBtn" class="hd-btn" title="プロジェクト設定 / 削除">⚙</button>
       </div>
       <div class="hd-center">
         <div id="modeToggle" class="mode-toggle" title="モードを切り替え">
@@ -478,7 +512,7 @@ body[data-mode="normal"] #assistPane { display: none; }
         </div>
       </div>
       <div class="hd-right">
-        <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ 節目</button>
+        <button id="addMilestoneBtn" class="hd-btn" title="マイルストーンを追加">＋ マイルストーン</button>
         <select id="granularitySelect" class="hd-select" title="表示粒度">
           <option value="day">日</option>
           <option value="week">週</option>
@@ -490,6 +524,9 @@ body[data-mode="normal"] #assistPane { display: none; }
         <button id="exportBtn" class="hd-btn" title="エクスポート / バックアップ">出力</button>
       </div>
     </header>
+
+    <!-- 全体の進捗バー -->
+    <div id="progressStrip" class="progress-strip"></div>
 
     <!-- 本体: 左=ツリー / 中=ガント / 右=アシストガイド -->
     <div id="appBody">
@@ -1751,20 +1788,16 @@ const Assist = (() => {
       desc: '定義 / 設計 / 実装 / フォロー',
       phases: [
         { name: '定義', subs: [
-          { name: '機能要件定義', tasks: ['ヒアリング', '要求一覧作成'] },
-          { name: '非機能要件定義', tasks: ['性能・セキュリティ要件整理'] },
+          { name: '要件定義', tasks: ['ヒアリング', '要求一覧作成'] },
         ] },
         { name: '設計', subs: [
-          { name: '基本設計書作成', tasks: ['画面設計', 'データ設計'] },
-          { name: '詳細設計書作成', tasks: ['モジュール設計'] },
+          { name: '基本設計', tasks: ['画面・データ設計'] },
         ] },
         { name: '実装', subs: [
-          { name: '機能A実装', tasks: ['実装', 'コードレビュー'] },
-          { name: '機能B実装', tasks: ['実装'] },
+          { name: '実装', tasks: ['実装', 'コードレビュー'] },
         ] },
         { name: 'フォロー', subs: [
-          { name: '受入テスト', tasks: ['テスト実施', '不具合修正'] },
-          { name: 'リリース対応', tasks: ['リリース作業'] },
+          { name: 'テスト・リリース', tasks: ['受入テスト'] },
         ] },
       ],
     },
@@ -1810,8 +1843,32 @@ const Assist = (() => {
       { done: lv1, title: '2. サブスケジュールを追加', body: '各フェーズの中身を、成果物・工程の単位で分けます。', eg: '例:「定義」→ 機能要件定義 / 非機能要件定義' },
       { done: lv2, title: '3. タスクを設定', body: '実際に手を動かす単位まで分解します。', eg: '例:「機能要件定義」→ ヒアリング / 要求一覧作成' },
       { done: hasDates, title: '4. 期間を入れる', body: 'タスクに開始日と期間(稼働日)を入れると、バーが表示されます。', eg: '土日・祝日は自動で除外されます' },
-      { done: hasMs, title: '5. 節目を置く(任意)', body: '納期やレビュー会などの目印を立てましょう。', eg: 'ガント上部の「＋ 節目」から追加' },
+      { done: hasMs, title: '5. マイルストーンを置く(任意)', body: '納期やレビュー会などの目印を立てましょう。', eg: 'クリックでマイルストーンを追加' },
     ];
+  }
+
+  // ガイド項目クリック時の動作。もっとも役立つモーダルを開く。
+  function runStep(i) {
+    if (i === 0) { Schedules.openEditor({ parentId: null, level: 0 }); return; }
+    if (i === 1) {
+      const s0 = state.schedules.find(n => Schedules.levelOf(n) === 0);
+      if (s0) Schedules.openEditor({ parentId: s0.id, level: 1 });
+      else { toast('先に「スケジュール」を追加しましょう'); Schedules.openEditor({ parentId: null, level: 0 }); }
+      return;
+    }
+    if (i === 2) {
+      const s1 = state.schedules.find(n => Schedules.levelOf(n) === 1);
+      if (s1) Schedules.openEditor({ parentId: s1.id, level: 2 });
+      else toast('先に「サブスケジュール」を追加しましょう');
+      return;
+    }
+    if (i === 3) {
+      const leaf = state.schedules.find(n => !Schedules.hasChildren(n.id) && (!n.startDate || !n.endDate));
+      if (leaf) Schedules.openEditor({ id: leaf.id });
+      else toast('すべてのタスクに期間が入っています');
+      return;
+    }
+    if (i === 4) { Milestones.openEditor(null); return; }
   }
 
   function renderAssist() {
@@ -1824,22 +1881,23 @@ const Assist = (() => {
         <h2>次にやること</h2>
         <p>この順に進めれば、迷わずスケジュールが完成します。</p>
       </div>
-      <ul class="guide-steps">
+      <div class="guide-steps">
         ${list.map((s, i) => `
-          <li class="guide-step ${s.done ? 'done' : ''} ${i === activeIdx ? 'active' : ''}">
+          <button type="button" class="guide-step ${s.done ? 'done' : ''} ${i === activeIdx ? 'active' : ''}" data-step="${i}">
             <span class="guide-check">✓</span>
             <div class="guide-body">
               <h3>${escapeHtml(s.title)}</h3>
               <p>${escapeHtml(s.body)}</p>
               <span class="eg">${escapeHtml(s.eg)}</span>
             </div>
-          </li>`).join('')}
-      </ul>
+            <span class="go">›</span>
+          </button>`).join('')}
+      </div>
       <div class="assist-tip">迷ったら、上の見本の言葉をそのまま真似して大丈夫。あとから何度でも直せます。</div>
     `;
   }
 
-  return { templateList, applyTemplate, renderAssist };
+  return { templateList, applyTemplate, renderAssist, runStep };
 })();
 
 
@@ -2021,10 +2079,12 @@ async function init() {
   Store.subscribe(['tree'], Schedules.renderTree);
   Store.subscribe(['gantt'], Gantt.renderGantt);
   Store.subscribe(['assist'], Assist.renderAssist);
+  Store.subscribe(['gantt', 'tree'], renderProgress);
 
   wireHeader();
   wireTree();
   wireGantt();
+  wireAssist();
   wireScrollSync();
   wireKeyboard();
 
@@ -2043,10 +2103,41 @@ function renderHeader() {
   document.getElementById('undoBtn').disabled = !History.canUndo();
 }
 
+// ---- 全体の進捗バー ----
+function renderProgress() {
+  const strip = document.getElementById('progressStrip');
+  const legend = `<span class="pr-sub">
+      <span class="status-dot todo"></span>未着手
+      <span class="status-dot doing" style="margin-left:8px"></span>進行中
+      <span class="status-dot done" style="margin-left:8px"></span>完了</span>`;
+  if (!state.project) { strip.className = 'progress-strip hidden'; strip.innerHTML = ''; return; }
+  const leaves = state.schedules.filter(n => !Schedules.hasChildren(n.id));
+  strip.className = 'progress-strip';
+  if (!leaves.length) {
+    strip.innerHTML = `<span class="pr-label">全体の進捗</span>
+      <div class="pr-track"><div class="pr-fill" style="width:0%"></div></div>
+      <span class="pr-pct">–</span><span class="pr-sub">タスクを追加すると進捗が表示されます</span>`;
+    return;
+  }
+  let sum = 0, done = 0;
+  for (const l of leaves) {
+    const s = Schedules.effectiveStatus(l);
+    sum += s === 'done' ? 1 : s === 'doing' ? 0.5 : 0;
+    if (s === 'done') done++;
+  }
+  const pct = Math.round(sum / leaves.length * 100);
+  strip.innerHTML = `<span class="pr-label">全体の進捗</span>
+    <div class="pr-track"><div class="pr-fill" style="width:${pct}%"></div></div>
+    <span class="pr-pct">${pct}%</span>
+    <span class="pr-sub">タスク ${done}/${leaves.length} 完了</span>
+    ${legend}`;
+}
+
 // ---- ヘッダー操作 ----
 function wireHeader() {
   document.getElementById('projectSelect').onchange = (e) => Projects.select(e.target.value);
   document.getElementById('newProjectBtn').onclick = openNewProjectDialog;
+  document.getElementById('projectMenuBtn').onclick = openProjectSettings;
   document.getElementById('modeToggle').onclick = (e) => {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);
@@ -2111,6 +2202,54 @@ function wireGantt() {
 function selectNode(id) {
   Store.setUiState({ selectedId: id }, []);
   Schedules.renderTree(); Gantt.renderGantt();
+}
+
+// ---- アシストガイド(項目クリックで対応モーダルを開く)----
+function wireAssist() {
+  document.getElementById('assistGuide').addEventListener('click', (e) => {
+    const step = e.target.closest('[data-step]');
+    if (step) Assist.runStep(parseInt(step.dataset.step, 10));
+  });
+}
+
+// ---- プロジェクト設定(名称変更 / 削除)----
+function openProjectSettings() {
+  if (!state.project) return;
+  const p = state.project;
+  UI.openModal(`
+    <div class="modal-head"><h2>プロジェクト設定</h2></div>
+    <form>
+      <div class="modal-body">
+        <div class="field">
+          <label>プロジェクト名</label>
+          <input name="name" value="${escapeHtml(p.name)}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>削除</label>
+          <button type="button" class="btn danger" data-del style="width:100%">🗑 このプロジェクトを削除</button>
+          <span class="eg-hint">このプロジェクトのスケジュール・マイルストーンなどがすべて消えます(元に戻せません)。</span>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" data-close>閉じる</button>
+        <button type="submit" class="btn primary">名前を保存</button>
+      </div>
+    </form>
+  `, {
+    onOpen(modal) {
+      modal.querySelector('[data-del]').onclick = async () => {
+        const ok = await UI.confirm(`「${p.name}」を削除します。よろしいですか?`, { danger: true, okLabel: '削除' });
+        if (!ok) return;
+        await Projects.remove(p.id);
+        toast('プロジェクトを削除しました');
+      };
+    },
+    onSubmit(form) {
+      const name = form.name.value.trim();
+      if (!name) { toast('名前を入力してください'); return false; }
+      Projects.rename(name);
+    }
+  });
 }
 
 // ---- スクロール同期 ----

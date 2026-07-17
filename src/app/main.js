@@ -9,10 +9,12 @@ async function init() {
   Store.subscribe(['tree'], Schedules.renderTree);
   Store.subscribe(['gantt'], Gantt.renderGantt);
   Store.subscribe(['assist'], Assist.renderAssist);
+  Store.subscribe(['gantt', 'tree'], renderProgress);
 
   wireHeader();
   wireTree();
   wireGantt();
+  wireAssist();
   wireScrollSync();
   wireKeyboard();
 
@@ -31,10 +33,41 @@ function renderHeader() {
   document.getElementById('undoBtn').disabled = !History.canUndo();
 }
 
+// ---- 全体の進捗バー ----
+function renderProgress() {
+  const strip = document.getElementById('progressStrip');
+  const legend = `<span class="pr-sub">
+      <span class="status-dot todo"></span>未着手
+      <span class="status-dot doing" style="margin-left:8px"></span>進行中
+      <span class="status-dot done" style="margin-left:8px"></span>完了</span>`;
+  if (!state.project) { strip.className = 'progress-strip hidden'; strip.innerHTML = ''; return; }
+  const leaves = state.schedules.filter(n => !Schedules.hasChildren(n.id));
+  strip.className = 'progress-strip';
+  if (!leaves.length) {
+    strip.innerHTML = `<span class="pr-label">全体の進捗</span>
+      <div class="pr-track"><div class="pr-fill" style="width:0%"></div></div>
+      <span class="pr-pct">–</span><span class="pr-sub">タスクを追加すると進捗が表示されます</span>`;
+    return;
+  }
+  let sum = 0, done = 0;
+  for (const l of leaves) {
+    const s = Schedules.effectiveStatus(l);
+    sum += s === 'done' ? 1 : s === 'doing' ? 0.5 : 0;
+    if (s === 'done') done++;
+  }
+  const pct = Math.round(sum / leaves.length * 100);
+  strip.innerHTML = `<span class="pr-label">全体の進捗</span>
+    <div class="pr-track"><div class="pr-fill" style="width:${pct}%"></div></div>
+    <span class="pr-pct">${pct}%</span>
+    <span class="pr-sub">タスク ${done}/${leaves.length} 完了</span>
+    ${legend}`;
+}
+
 // ---- ヘッダー操作 ----
 function wireHeader() {
   document.getElementById('projectSelect').onchange = (e) => Projects.select(e.target.value);
   document.getElementById('newProjectBtn').onclick = openNewProjectDialog;
+  document.getElementById('projectMenuBtn').onclick = openProjectSettings;
   document.getElementById('modeToggle').onclick = (e) => {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);
@@ -99,6 +132,54 @@ function wireGantt() {
 function selectNode(id) {
   Store.setUiState({ selectedId: id }, []);
   Schedules.renderTree(); Gantt.renderGantt();
+}
+
+// ---- アシストガイド(項目クリックで対応モーダルを開く)----
+function wireAssist() {
+  document.getElementById('assistGuide').addEventListener('click', (e) => {
+    const step = e.target.closest('[data-step]');
+    if (step) Assist.runStep(parseInt(step.dataset.step, 10));
+  });
+}
+
+// ---- プロジェクト設定(名称変更 / 削除)----
+function openProjectSettings() {
+  if (!state.project) return;
+  const p = state.project;
+  UI.openModal(`
+    <div class="modal-head"><h2>プロジェクト設定</h2></div>
+    <form>
+      <div class="modal-body">
+        <div class="field">
+          <label>プロジェクト名</label>
+          <input name="name" value="${escapeHtml(p.name)}" autocomplete="off">
+        </div>
+        <div class="field">
+          <label>削除</label>
+          <button type="button" class="btn danger" data-del style="width:100%">🗑 このプロジェクトを削除</button>
+          <span class="eg-hint">このプロジェクトのスケジュール・マイルストーンなどがすべて消えます(元に戻せません)。</span>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" data-close>閉じる</button>
+        <button type="submit" class="btn primary">名前を保存</button>
+      </div>
+    </form>
+  `, {
+    onOpen(modal) {
+      modal.querySelector('[data-del]').onclick = async () => {
+        const ok = await UI.confirm(`「${p.name}」を削除します。よろしいですか?`, { danger: true, okLabel: '削除' });
+        if (!ok) return;
+        await Projects.remove(p.id);
+        toast('プロジェクトを削除しました');
+      };
+    },
+    onSubmit(form) {
+      const name = form.name.value.trim();
+      if (!name) { toast('名前を入力してください'); return false; }
+      Projects.rename(name);
+    }
+  });
 }
 
 // ---- スクロール同期 ----
