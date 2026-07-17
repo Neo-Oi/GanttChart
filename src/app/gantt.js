@@ -68,13 +68,18 @@ const Gantt = (() => {
     const ticks = [];
     let d = new Date(scale.origin.getFullYear(), scale.origin.getMonth(), scale.origin.getDate());
     const end = scale.end;
+    const WD = ['日', '月', '火', '水', '木', '金', '土'];
     while (dayDiff(d, end) >= 0) {
-      let show = false, major = false, label = '', sub = '';
+      let show = false, major = false, label = '', sub = '', wd = '', cls = '';
       if (g === 'day') {
         show = true;
         major = d.getDate() === 1;
         label = major ? `${d.getMonth() + 1}月` : '';
         sub = String(d.getDate());
+        wd = WD[d.getDay()];  // 曜日を表示
+        // 土=青、日/祝=赤 で色分け
+        if (d.getDay() === 0 || Holidays.isHoliday(d)) cls = 'sun';
+        else if (d.getDay() === 6) cls = 'sat';
       } else if (g === 'week') {
         if (d.getDay() === 1) { show = true; major = d.getDate() <= 7; label = major ? `${d.getMonth() + 1}月` : ''; sub = `${d.getMonth() + 1}/${d.getDate()}`; }
       } else if (g === 'month') {
@@ -89,7 +94,7 @@ const Gantt = (() => {
       } else if (g === 'quarter') {
         if (d.getDate() === 1 && d.getMonth() % 3 === 0) { show = true; major = d.getMonth() === 0; label = major ? `${d.getFullYear()}` : ''; sub = `Q${Math.floor(d.getMonth() / 3) + 1}`; }
       }
-      if (show) ticks.push(`<div class="scale-tick ${major ? 'major' : ''}" style="left:${dateToX(d)}px">${label}<span class="sub">${sub}</span></div>`);
+      if (show) ticks.push(`<div class="scale-tick ${major ? 'major' : ''} ${cls}" style="left:${dateToX(d)}px">${label}<span class="sub">${sub}</span>${wd ? `<span class="wd">${wd}</span>` : ''}</div>`);
       d = addDays(d, 1);
     }
     return `<div class="gantt-scale" style="width:${scale.width}px">${ticks.join('')}${renderFlags()}</div>`;
@@ -111,10 +116,10 @@ const Gantt = (() => {
       else if (g === 'month') { line = d.getDate() === 1; major = d.getMonth() === 0; }
       else if (g === 'quarter') { line = d.getDate() === 1 && d.getMonth() % 3 === 0; major = d.getMonth() === 0; }
       if (line) parts.push(`<div class="grid-line ${major ? 'major' : ''}" style="left:${x}px"></div>`);
-      // 週末/祝日シェード(日・週表示のみ)
+      // 週末/祝日シェード(日・週表示のみ)。土=青、日/祝=赤。
       if (showWeekendShade) {
-        if (isWeekend(d)) parts.push(`<div class="grid-weekend" style="left:${x}px;width:${scale.pxPerDay}px"></div>`);
-        else if (Holidays.isHoliday(d)) parts.push(`<div class="grid-holiday" style="left:${x}px;width:${scale.pxPerDay}px"></div>`);
+        if (d.getDay() === 0 || Holidays.isHoliday(d)) parts.push(`<div class="grid-holiday" style="left:${x}px;width:${scale.pxPerDay}px"></div>`);
+        else if (d.getDay() === 6) parts.push(`<div class="grid-weekend" style="left:${x}px;width:${scale.pxPerDay}px"></div>`);
       }
       d = addDays(d, 1);
     }

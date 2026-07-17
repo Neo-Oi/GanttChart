@@ -337,12 +337,17 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .scale-tick.major { border-left-color: var(--border-strong); }
 .scale-tick .sub { display: block; color: var(--text-muted); font-weight: 600; font-size: 11px; }
+/* 曜日 */
+.scale-tick .wd { display: block; font-size: 9px; color: var(--text-faint); line-height: 1.1; }
+/* 土=青 / 日・祝=赤 で曜日と日付を色分け */
+.scale-tick.sat .sub, .scale-tick.sat .wd { color: #2563eb; }
+.scale-tick.sun .sub, .scale-tick.sun .wd { color: #dc2626; }
 
 .gantt-grid { position: relative; }
 .grid-line { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
 .grid-line.major { border-left-color: var(--border-strong); }
-.grid-weekend { position: absolute; top: 0; bottom: 0; background: rgba(100, 116, 139, .05); }
-.grid-holiday { position: absolute; top: 0; bottom: 0; background: rgba(239, 68, 68, .06); }
+.grid-weekend { position: absolute; top: 0; bottom: 0; background: rgba(37, 99, 235, .07); }
+.grid-holiday { position: absolute; top: 0; bottom: 0; background: rgba(220, 38, 38, .09); }
 
 .today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #ef4444; z-index: 6; pointer-events: none; }
 /* プロジェクト期間の境界(開始/終了)。テーマ色の太めの点線 + ヘッダー旗。 */
