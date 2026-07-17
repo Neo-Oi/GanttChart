@@ -542,18 +542,33 @@ body[data-mode="normal"] #assistPane { display: none; }
 .md-preview .md-list input[type="checkbox"] { margin-right: 4px; vertical-align: -2px; }
 .md-preview code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 12px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 
-/* ===== プロジェクトメモパネル ===== */
-.notes-body { display: flex; flex-direction: column; gap: 12px; }
+/* ===== プロジェクトメモ: 右下ドッキングの非モーダル浮遊パネル ===== */
+/* モーダル/サイドパネルと違い、背景をブロックしない(バックドロップなし)。
+   「開いたまま他の操作(スケジュール追加・ドラッグなど)ができる」ようにするための設計。
+   #modalHost/#panelHost より前にDOM順で置き、z-indexは付けない
+   → モーダル/サイドパネルを開いたときは、それらが自然に手前に来る。 */
+.notes-float {
+  position: fixed; right: 20px; bottom: 20px;
+  width: 380px; height: 460px; min-width: 300px; min-height: 260px;
+  max-width: calc(100vw - 40px); max-height: calc(100vh - 100px);
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px;
+  box-shadow: var(--shadow-lg); display: flex; flex-direction: column;
+  overflow: hidden; resize: both;
+}
+.notes-float.hidden { display: none; }
+.notes-float .panel-body { overflow: hidden; }
+
+.notes-body { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
 .notes-editor {
-  width: 100%; min-height: 160px; resize: vertical;
+  width: 100%; flex: 1 1 45%; min-height: 70px; resize: none;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6;
   padding: 10px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text);
 }
 .notes-editor:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-.notes-editor-sm { min-height: 90px; }
-.notes-preview { border-top: 1px dashed var(--border); padding-top: 10px; }
+.notes-editor-sm { flex: none; min-height: 90px; resize: vertical; }
+.notes-preview { flex: 1 1 45%; min-height: 0; overflow-y: auto; border-top: 1px dashed var(--border); padding-top: 10px; }
 .notes-preview-empty { color: var(--text-faint); font-size: 12px; margin: 0; }
-.notes-foot { display: flex; gap: 8px; }
+.notes-foot { display: flex; gap: 8px; flex-wrap: wrap; }
 .notes-import-row { margin-top: 8px; }
 
 /* ===== スケジュール/サブスケジュール/タスク編集モーダル内の「メモを見る」参考ブロック ===== */
@@ -647,6 +662,9 @@ body[data-mode="normal"] #assistPane { display: none; }
         <div id="assistGuide"></div>
       </aside>
     </div>
+
+    <!-- プロジェクトメモ(非モーダル・背景をブロックしないドッキングパネル) -->
+    <div id="notesFloatHost" class="notes-float hidden"></div>
 
     <!-- モーダル / トースト -->
     <div id="modalHost" class="modal-host hidden"></div>
@@ -1197,20 +1215,31 @@ const Projects = (() => {
 // ===== app/notes.js =====
 // ==== app/notes.js ====
 // プロジェクトメモ(Markdown)。タスクの洗い出し・下書き用。
-// 編集(テキストエリア)とプレビューを同時に表示し、.mdファイルの読み込み・書き出しができる。
+// 「開いたまま作業したい」という要望から、モーダル/サイドパネル(#modalHost/#panelHost、
+// 背景をブロックする全画面オーバーレイ)は使わず、右下にドッキングする非モーダルな
+// 浮遊パネル(#notesFloatHost)として実装する。開いている間も、ツリー/ガント/他のモーダルは
+// 通常どおり操作できる。
 // 履歴(history.js)の追跡対象外(CLAUDE.md の HISTORY_DOMAINS 参照)。
 
 const NotesPanel = (() => {
-  function open() {
-    if (!state.project) return;
+  // 直近にこのプロジェクトIDで中身を組み立てたかを覚えておく。
+  // 他の操作(スケジュール追加など)による全体再描画のたびに中身を作り直すと、
+  // 開いたまま入力中の未保存テキストが消えてしまうため、
+  // 「プロジェクトが変わった/初めて開いた」ときだけ組み立て直す。
+  let builtForProjectId = null;
+
+  function host() { return document.getElementById('notesFloatHost'); }
+
+  function build() {
+    const h = host();
     const md = state.project.notesMd || '';
-    UI.openPanel(`
+    h.innerHTML = `
       <div class="panel-head">
         <h2>プロジェクトメモ</h2>
-        <button class="icon-btn" data-close>✕</button>
+        <button class="icon-btn" id="notesFloatClose" title="閉じる(内容は保持されます)">✕</button>
       </div>
       <div class="panel-sub">
-        <div class="tp-hint">タスクの洗い出し・下書きに使えます。スケジュール/サブスケジュール/タスクの追加・編集画面からも参照できます。Markdown記法(見出し #、箇条書き -、チェックリスト - [ ]、太字 **太字**)が使えます。</div>
+        <div class="tp-hint">タスクの洗い出し・下書きに。開いたまま他の操作ができます。スケジュール/サブスケジュール/タスクの追加・編集画面からも参照できます。</div>
       </div>
       <div class="panel-body notes-body">
         <textarea id="notesEditor" class="notes-editor">${escapeHtml(md)}</textarea>
@@ -1221,45 +1250,70 @@ const NotesPanel = (() => {
         <button type="button" class="btn" id="notesExportBtn">📄 書き出す</button>
         <button type="button" class="btn primary" id="notesSaveBtn">保存</button>
         <input type="file" accept=".md,text/markdown" id="notesFileInput" hidden>
-      </div>
-    `, {
-      onOpen(panel) {
-        const ta = panel.querySelector('#notesEditor');
-        const preview = panel.querySelector('#notesPreview');
-        const update = () => {
-          const html = renderMarkdownSafe(ta.value);
-          preview.innerHTML = html || '<p class="notes-preview-empty">ここにプレビューが表示されます。</p>';
-        };
-        update();
-        ta.addEventListener('input', update);
+      </div>`;
 
-        const fileInput = panel.querySelector('#notesFileInput');
-        panel.querySelector('#notesImportBtn').onclick = () => fileInput.click();
-        fileInput.onchange = () => {
-          const f = fileInput.files[0];
-          if (!f) return;
-          const reader = new FileReader();
-          reader.onload = () => { ta.value = reader.result; update(); };
-          reader.readAsText(f);
-        };
-        panel.querySelector('#notesExportBtn').onclick = () => {
-          const blob = new Blob([ta.value], { type: 'text/markdown' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `${state.project.name || 'notes'}.md`;
-          a.click();
-          URL.revokeObjectURL(url);
-        };
-        panel.querySelector('#notesSaveBtn').onclick = async () => {
-          await Projects.updateNotes(ta.value);
-          toast('メモを保存しました');
-        };
-      }
-    });
+    const ta = h.querySelector('#notesEditor');
+    const preview = h.querySelector('#notesPreview');
+    const update = () => {
+      const html = renderMarkdownSafe(ta.value);
+      preview.innerHTML = html || '<p class="notes-preview-empty">ここにプレビューが表示されます。</p>';
+    };
+    update();
+    ta.addEventListener('input', update);
+
+    h.querySelector('#notesFloatClose').onclick = close;
+
+    const fileInput = h.querySelector('#notesFileInput');
+    h.querySelector('#notesImportBtn').onclick = () => fileInput.click();
+    fileInput.onchange = () => {
+      const f = fileInput.files[0];
+      if (!f) return;
+      const reader = new FileReader();
+      reader.onload = () => { ta.value = reader.result; update(); };
+      reader.readAsText(f);
+    };
+    h.querySelector('#notesExportBtn').onclick = () => {
+      const blob = new Blob([ta.value], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${state.project.name || 'notes'}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+    h.querySelector('#notesSaveBtn').onclick = async () => {
+      await Projects.updateNotes(ta.value);
+      toast('メモを保存しました');
+    };
+
+    builtForProjectId = state.project.id;
   }
 
-  return { open };
+  function open() {
+    if (!state.project) return;
+    if (builtForProjectId !== state.project.id) build();
+    host().classList.remove('hidden');
+  }
+
+  function close() {
+    host().classList.add('hidden');
+  }
+
+  function toggle() {
+    if (host().classList.contains('hidden')) open();
+    else close();
+  }
+
+  // 他の操作による全体再描画に追随する。開いていなければ何もしない。
+  // プロジェクトが切り替わっていれば中身を新しいプロジェクトのメモに作り直す
+  // (切り替わっていなければ、入力中の未保存テキストを壊さないよう何もしない)。
+  function refresh() {
+    if (!state.project) { builtForProjectId = null; return; }
+    if (host().classList.contains('hidden')) return;
+    if (builtForProjectId !== state.project.id) build();
+  }
+
+  return { open, close, toggle, refresh };
 })();
 
 
@@ -2474,6 +2528,7 @@ async function init() {
   Store.subscribe(['assist'], Assist.renderAssist);
   Store.subscribe(['gantt', 'tree'], renderProgress);
   Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
+  Store.subscribe(['gantt', 'tree', 'header'], NotesPanel.refresh);
 
   wireHeader();
   wireTree();
@@ -2532,7 +2587,7 @@ function wireHeader() {
   document.getElementById('projectSelect').onchange = (e) => Projects.select(e.target.value);
   document.getElementById('newProjectBtn').onclick = openNewProjectDialog;
   document.getElementById('projectMenuBtn').onclick = openProjectSettings;
-  document.getElementById('notesBtn').onclick = () => NotesPanel.open();
+  document.getElementById('notesBtn').onclick = () => NotesPanel.toggle();
   document.getElementById('modeToggle').onclick = (e) => {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);

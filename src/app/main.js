@@ -11,6 +11,7 @@ async function init() {
   Store.subscribe(['assist'], Assist.renderAssist);
   Store.subscribe(['gantt', 'tree'], renderProgress);
   Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
+  Store.subscribe(['gantt', 'tree', 'header'], NotesPanel.refresh);
 
   wireHeader();
   wireTree();
@@ -69,7 +70,7 @@ function wireHeader() {
   document.getElementById('projectSelect').onchange = (e) => Projects.select(e.target.value);
   document.getElementById('newProjectBtn').onclick = openNewProjectDialog;
   document.getElementById('projectMenuBtn').onclick = openProjectSettings;
-  document.getElementById('notesBtn').onclick = () => NotesPanel.open();
+  document.getElementById('notesBtn').onclick = () => NotesPanel.toggle();
   document.getElementById('modeToggle').onclick = (e) => {
     const btn = e.target.closest('[data-mode]');
     if (btn) Projects.setMode(btn.dataset.mode);
