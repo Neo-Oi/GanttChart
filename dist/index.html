@@ -2057,7 +2057,9 @@ const Gantt = (() => {
     // 複数が近接しても重ならないよう、フラグは3段でずらす。
     state.milestones.forEach((m, i) => {
       const d = parseDate(m.date);
-      if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) > 0) return;
+      // 表示範囲: origin <= d <= end。origin より前(dayDiff(origin,d)<0)、
+      // または end より後(dayDiff(d,end)<0 ＝ end-d<0)のときだけスキップする。
+      if (!d || dayDiff(scale.origin, d) < 0 || dayDiff(d, scale.end) < 0) return;
       const mx = dateToX(d) + scale.pxPerDay / 2;
       const topOffset = (i % 3) * 19;
       parts.push(`<div class="milestone-line" style="left:${mx}px;height:${totalH}px"></div>`);
