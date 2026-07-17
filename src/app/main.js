@@ -10,6 +10,7 @@ async function init() {
   Store.subscribe(['gantt'], Gantt.renderGantt);
   Store.subscribe(['assist'], Assist.renderAssist);
   Store.subscribe(['gantt', 'tree'], renderProgress);
+  Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
 
   wireHeader();
   wireTree();
@@ -101,6 +102,8 @@ function wireTree() {
       Schedules.openEditor({ parentId: parent.id, level: Schedules.levelOf(parent) + 1 });
       return;
     }
+    const tasks = e.target.closest('[data-tasks]');
+    if (tasks) { TaskPanel.open(tasks.dataset.tasks); return; }
     const edit = e.target.closest('[data-edit]');
     if (edit) { Schedules.openEditor({ id: edit.dataset.edit }); return; }
     const del = e.target.closest('[data-del]');

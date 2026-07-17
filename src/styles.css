@@ -41,9 +41,9 @@ body[data-mode="assist"] {
   --accent-strong: #0b7a54;
   --accent-soft: #e7f8f1;
   --accent-line: #86dcbb;
-  --tone-todo: #c4ecda;   /* 淡(白背景に近い緑) */
-  --tone-doing: #17a878;  /* 中 */
-  --tone-done: #0a5e42;   /* 濃 */
+  --tone-todo: #0a5e42;   /* 濃(未着手) */
+  --tone-doing: #17a878;  /* 中(進行中) */
+  --tone-done: #c4ecda;   /* 淡(完了) */
 }
 
 /* ノーマルモード: 青基調。同系色の濃淡。 */
@@ -52,9 +52,9 @@ body[data-mode="normal"] {
   --accent-strong: #1d4ed8;
   --accent-soft: #e8f0fe;
   --accent-line: #9cc0fb;
-  --tone-todo: #cfe0fb;   /* 淡 */
-  --tone-doing: #2f6ff0;  /* 中 */
-  --tone-done: #17379e;   /* 濃 */
+  --tone-todo: #17379e;   /* 濃(未着手) */
+  --tone-doing: #2f6ff0;  /* 中(進行中) */
+  --tone-done: #cfe0fb;   /* 淡(完了) */
 }
 
 * { box-sizing: border-box; }
@@ -254,6 +254,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .icon-btn:hover { background: var(--border); color: var(--text); }
 
+.task-chip {
+  flex: 0 0 auto; height: 22px; padding: 0 9px; margin-left: 2px;
+  border: 1px solid var(--accent-line); border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-strong);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.task-chip:hover { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
 .status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; border: 1px solid rgba(15,23,42,.12); }
 .status-dot.todo { background: var(--tone-todo); }
 .status-dot.doing { background: var(--tone-doing); }
@@ -313,25 +321,44 @@ body[data-mode="normal"] #assistPane { display: none; }
   user-select: none;
 }
 .bar:active { cursor: grabbing; }
+.bar[data-bar] { transition: box-shadow .12s, filter .12s, transform .06s; }
+.bar[data-bar]:hover { box-shadow: 0 2px 8px rgba(15,23,42,.28); filter: brightness(1.04); }
+/* ドラッグ可能を示すハンドル(ホバーで表示) */
+.bar[data-bar]:hover .grip::after {
+  content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 3px; height: 55%; border-left: 2px solid rgba(255,255,255,.85); border-right: 2px solid rgba(255,255,255,.85);
+}
+.bar.done[data-bar]:hover .grip::after { border-color: rgba(30,41,59,.6); }
+.bar.dragging { box-shadow: 0 8px 24px rgba(15,23,42,.4) !important; filter: brightness(1.06); outline: 2px solid #fff; outline-offset: -1px; z-index: 9; opacity: .95; }
 .bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
-.bar .grip { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.bar .grip { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
 .bar .grip.left { left: 0; } .bar .grip.right { right: 0; }
-/* ステータスは同系色の濃淡。未着手は淡いので文字は濃色にする。 */
-.bar.todo { background: var(--tone-todo); color: #1e293b; }
-.bar.todo .bar-label { text-shadow: none; }
-.bar.doing { background: var(--tone-doing); }
-.bar.done { background: var(--tone-done); }
 
-/* サマリーバー(スケジュール/サブスケジュール)は中立の灰色のまま。 */
+/* ドラッグ中の日付ツールチップ */
+.drag-tip {
+  position: fixed; z-index: 300; pointer-events: none;
+  background: #1e293b; color: #fff; font-size: 12px; font-weight: 600;
+  padding: 5px 10px; border-radius: 6px; box-shadow: var(--shadow-md);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* ステータスは同系色の濃淡(未着手=濃 → 完了=淡)。完了は淡いので文字を濃色に。 */
+.bar.todo { background: var(--tone-todo); }
+.bar.doing { background: var(--tone-doing); }
+.bar.done { background: var(--tone-done); color: #1e293b; }
+.bar.done .bar-label { text-shadow: none; }
+
+/* サマリーバー。スケジュール(淡グレー)とサブスケジュール(濃グレー)で色を分ける。 */
 .bar.summary {
   top: 14px; height: calc(var(--row-h) - 26px);
-  background: var(--bar-summary); border-radius: 3px; cursor: default;
+  background: var(--bs, #475569); border-radius: 3px; cursor: default;
   box-shadow: none; opacity: .95;
 }
+.bar.summary.lv0 { --bs: #a3adbb; }  /* スケジュール = 淡グレー */
+.bar.summary.lv1 { --bs: #4b5563; }  /* サブスケジュール = 濃グレー */
 .bar.summary::before, .bar.summary::after {
   content: ""; position: absolute; bottom: -5px; width: 0; height: 0;
   border-left: 5px solid transparent; border-right: 5px solid transparent;
-  border-top: 6px solid var(--bar-summary);
+  border-top: 6px solid var(--bs, #475569);
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
@@ -415,9 +442,36 @@ body[data-mode="normal"] #assistPane { display: none; }
   animation: slidein .18s ease;
 }
 @keyframes slidein { from { transform: translateX(30px); opacity: .6; } to { transform: none; opacity: 1; } }
-.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.side-panel { display: flex; flex-direction: column; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
 .panel-head h2 { margin: 0; font-size: 15px; }
-.panel-body { padding: 16px 20px; }
+.panel-body { padding: 16px 20px; flex: 1 1 auto; overflow-y: auto; }
+.panel-sub { flex: 0 0 auto; padding: 12px 20px; background: var(--accent-soft); border-bottom: 1px solid var(--border); }
+.panel-sub .tp-subname { font-size: 14px; font-weight: 700; color: var(--accent-strong); }
+.panel-sub .tp-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.panel-foot { flex: 0 0 auto; padding: 14px 20px; border-top: 1px solid var(--border); }
+
+/* タスク管理パネル */
+.tp-empty { color: var(--text-faint); font-size: 13px; text-align: center; padding: 30px 10px; }
+.tp-task {
+  display: flex; align-items: center; gap: 10px; padding: 10px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; background: var(--surface);
+}
+.tp-task:hover { border-color: var(--border-strong); }
+.tp-main { flex: 1 1 auto; min-width: 0; }
+.tp-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.tp-task .row-actions2 { display: flex; gap: 2px; }
+.seg-mini { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+.seg-mini button {
+  width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--border-strong);
+  background: var(--surface); padding: 0; opacity: .5;
+}
+.seg-mini button.on { opacity: 1; border-color: transparent; }
+.seg-mini button.todo.on { background: var(--tone-todo); }
+.seg-mini button.doing.on { background: var(--tone-doing); }
+.seg-mini button.done.on { background: var(--tone-done); }
+.seg-mini button:not(.on):hover { opacity: .85; }
 
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
