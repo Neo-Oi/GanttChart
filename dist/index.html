@@ -234,9 +234,13 @@ body[data-mode="normal"] #assistPane { display: none; }
   height: var(--row-h);
   padding-right: 8px;
   border-bottom: 1px solid var(--border);
+  border-left: 3px solid transparent;
   gap: 4px;
   cursor: default;
 }
+/* WBS(ツリー)も、ガントのサマリーバーと同じ配色ルール: 親(スケジュール)=テーマ色、子(サブスケジュール)=グレー。 */
+.tree-row.lv0 { border-left-color: var(--accent-strong); }
+.tree-row.lv1 { border-left-color: #94a3b8; }
 .tree-row:hover { background: var(--surface-2); }
 .tree-row.selected { background: var(--accent-soft); }
 .tree-row .twist {
@@ -248,8 +252,8 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .twist.leaf { visibility: hidden; }
 .tree-row .num { color: var(--text-faint); font-size: 11px; min-width: 34px; font-variant-numeric: tabular-nums; }
 .tree-row .name { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
-.tree-row .name.lv0 { font-weight: 700; }
-.tree-row .name.lv1 { font-weight: 600; color: #334155; }
+.tree-row .name.lv0 { font-weight: 700; color: var(--accent-strong); }
+.tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
 .tree-row .meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
 .tree-row .row-actions { display: none; gap: 2px; }
@@ -354,14 +358,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 .bar.done { background: var(--tone-done); color: #1e293b; }
 .bar.done .bar-label { text-shadow: none; }
 
-/* サマリーバー。スケジュール(淡グレー)とサブスケジュール(濃グレー)で色を分ける。 */
+/* サマリーバー。親(スケジュール)=テーマ色、子(サブスケジュール)=グレーで区別する。 */
 .bar.summary {
   top: 14px; height: calc(var(--row-h) - 26px);
-  background: var(--bs, #475569); border-radius: 3px; cursor: default;
+  background: var(--bs, #64748b); border-radius: 3px; cursor: default;
   box-shadow: none; opacity: .95;
 }
-.bar.summary.lv0 { --bs: #a3adbb; }  /* スケジュール = 淡グレー */
-.bar.summary.lv1 { --bs: #4b5563; }  /* サブスケジュール = 濃グレー */
+.bar.summary.lv0 { --bs: var(--accent-strong); }  /* スケジュール(親) = テーマ色 */
+.bar.summary.lv1 { --bs: #64748b; }               /* サブスケジュール(子) = グレー */
 .bar.summary::before, .bar.summary::after {
   content: ""; position: absolute; bottom: -5px; width: 0; height: 0;
   border-left: 5px solid transparent; border-right: 5px solid transparent;
@@ -1208,7 +1212,7 @@ const Schedules = (() => {
       const hoverAdd = r.level < MAX_LEVEL
         ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : '';
       return `
-        <div class="tree-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
+        <div class="tree-row lv${r.level} ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
              style="padding-left:${8 + r.level * 16}px">
           ${twist}
           <span class="status-dot ${st}"></span>
