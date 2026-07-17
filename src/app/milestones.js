@@ -50,6 +50,8 @@ const Milestones = (() => {
     await DB.put('milestones', m, { action: 'add', label: `マイルストーン「${data.name}」を追加` });
     await Projects.touch();
     Store.renderAll();
+    // 追加した瞬間にその日付が今のスクロール位置の外にあると気づけないため、自動で連れて行く。
+    Gantt.scrollToDate(parseDate(m.date));
   }
 
   async function save(id, data) {
@@ -59,6 +61,7 @@ const Milestones = (() => {
     await DB.put('milestones', m, { action: 'edit', label: `マイルストーン「${m.name}」を編集` });
     await Projects.touch();
     Store.renderAll();
+    Gantt.scrollToDate(parseDate(m.date));
   }
 
   async function remove(id) {

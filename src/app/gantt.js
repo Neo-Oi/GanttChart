@@ -44,6 +44,18 @@ const Gantt = (() => {
   function dateToX(d) { return dayDiff(scale.origin, d) * scale.pxPerDay; }
   function xToDate(x) { return addDays(scale.origin, Math.round(x / scale.pxPerDay)); }
 
+  // 指定日が画面内に見えるよう、ガント本体を水平スクロールする(先頭に戻す)。
+  // 位置が正しく計算されていても、現在のスクロール位置の外にあると
+  // 「見えているのに気づけない」ことがあるため、追加・編集の直後に呼ぶ。
+  function scrollToDate(d) {
+    if (!d || !scale.origin) return;
+    const body = document.getElementById('ganttBody');
+    if (!body) return;
+    const x = dateToX(d);
+    body.scrollLeft = Math.max(0, x - body.clientWidth / 2);
+    body.scrollTop = 0;
+  }
+
   // --- ヘッダー目盛り ---
   function renderScale() {
     const g = uiState.granularity;
@@ -284,5 +296,5 @@ const Gantt = (() => {
     document.addEventListener('mouseup', onUp);
   }
 
-  return { renderGantt, computeDateScale, dateToX, xToDate, beginDrag, ROW_H };
+  return { renderGantt, computeDateScale, dateToX, xToDate, scrollToDate, beginDrag, ROW_H };
 })();

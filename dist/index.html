@@ -1911,6 +1911,8 @@ const Milestones = (() => {
     await DB.put('milestones', m, { action: 'add', label: `マイルストーン「${data.name}」を追加` });
     await Projects.touch();
     Store.renderAll();
+    // 追加した瞬間にその日付が今のスクロール位置の外にあると気づけないため、自動で連れて行く。
+    Gantt.scrollToDate(parseDate(m.date));
   }
 
   async function save(id, data) {
@@ -1920,6 +1922,7 @@ const Milestones = (() => {
     await DB.put('milestones', m, { action: 'edit', label: `マイルストーン「${m.name}」を編集` });
     await Projects.touch();
     Store.renderAll();
+    Gantt.scrollToDate(parseDate(m.date));
   }
 
   async function remove(id) {
@@ -1981,6 +1984,18 @@ const Gantt = (() => {
 
   function dateToX(d) { return dayDiff(scale.origin, d) * scale.pxPerDay; }
   function xToDate(x) { return addDays(scale.origin, Math.round(x / scale.pxPerDay)); }
+
+  // 指定日が画面内に見えるよう、ガント本体を水平スクロールする(先頭に戻す)。
+  // 位置が正しく計算されていても、現在のスクロール位置の外にあると
+  // 「見えているのに気づけない」ことがあるため、追加・編集の直後に呼ぶ。
+  function scrollToDate(d) {
+    if (!d || !scale.origin) return;
+    const body = document.getElementById('ganttBody');
+    if (!body) return;
+    const x = dateToX(d);
+    body.scrollLeft = Math.max(0, x - body.clientWidth / 2);
+    body.scrollTop = 0;
+  }
 
   // --- ヘッダー目盛り ---
   function renderScale() {
@@ -2222,7 +2237,7 @@ const Gantt = (() => {
     document.addEventListener('mouseup', onUp);
   }
 
-  return { renderGantt, computeDateScale, dateToX, xToDate, beginDrag, ROW_H };
+  return { renderGantt, computeDateScale, dateToX, xToDate, scrollToDate, beginDrag, ROW_H };
 })();
 
 
