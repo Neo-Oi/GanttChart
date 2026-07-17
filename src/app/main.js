@@ -90,6 +90,17 @@ function wireHeader() {
   document.getElementById('undoBtn').onclick = () => History.undo();
   document.getElementById('historyBtn').onclick = () => History.openPanel();
   document.getElementById('exportBtn').onclick = () => ExportImport.openMenu();
+  // ダークモード切り替え(選択は localStorage に保存し、次回起動時も引き継ぐ)
+  const themeBtn = document.getElementById('themeBtn');
+  const applyThemeIcon = () => { themeBtn.textContent = document.documentElement.dataset.theme === 'dark' ? '☀' : '🌙'; };
+  themeBtn.onclick = () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    if (dark) delete document.documentElement.dataset.theme;
+    else document.documentElement.dataset.theme = 'dark';
+    try { localStorage.setItem('ganttchart-theme', dark ? 'light' : 'dark'); } catch (e) {}
+    applyThemeIcon();
+  };
+  applyThemeIcon();
 }
 
 // ---- ツリー(イベント委譲)----
