@@ -108,12 +108,16 @@ const Schedules = (() => {
       // level 0,1 は子を追加できる(スケジュール→サブ、サブ→タスク)。
       const hoverAdd = r.level < MAX_LEVEL
         ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : '';
+      // レベルが一目で分かるバッジ(スケジュール / サブ / タスク)。
+      const badgeText = ['スケジュール', 'サブ', 'タスク'][r.level] || '';
+      // 階層インデントは廃止(全行を同じ左位置に揃え、右端の列がずれないようにする)。
+      // 階層はレベルバッジ + 番号(1.1.1)+ 色で表す。
       return `
-        <div class="tree-row lv${r.level} ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
-             style="padding-left:${8 + r.level * 16}px">
+        <div class="tree-row lv${r.level} ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}">
           ${twist}
           <span class="status-dot ${dotClass}"></span>
           <span class="num">${nums[n.id] || ''}</span>
+          <span class="lvl-badge lv${r.level}" title="${LEVEL_NAME[r.level]}">${badgeText}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
           <span class="meta">${meta}</span>
           <span class="row-status ${effSt}">${statusText}</span>

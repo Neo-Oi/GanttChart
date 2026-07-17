@@ -197,6 +197,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   background: var(--surface);
 }
 .tree-col-head { font-size: 11px; color: var(--text-faint); font-weight: 600; letter-spacing: .3px; }
+.tree-legend { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; }
 .tool-btn {
   height: 30px;
   padding: 0 12px;
@@ -216,6 +217,7 @@ body[data-mode="normal"] #assistPane { display: none; }
   display: flex;
   align-items: center;
   height: var(--row-h);
+  padding-left: 8px;
   padding-right: 8px;
   border-bottom: 1px solid var(--border);
   border-left: 3px solid transparent;
@@ -240,6 +242,16 @@ body[data-mode="normal"] #assistPane { display: none; }
 .tree-row .name.lv1 { font-weight: 600; color: #64748b; }
 .tree-row .name.lv2 { font-weight: 400; color: #475569; }
 .tree-row .meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+/* レベルバッジ: スケジュール(親=テーマ色)/ サブ(グレー)/ タスク(淡グレー枠)。一目で階層が分かる。 */
+.lvl-badge {
+  flex: 0 0 auto; font-size: 9px; font-weight: 700; line-height: 1;
+  padding: 3px 6px; border-radius: 4px; white-space: nowrap;
+  letter-spacing: .2px;
+}
+.lvl-badge.lv0 { background: var(--accent-strong); color: #fff; }
+.lvl-badge.lv1 { background: #64748b; color: #fff; }
+.lvl-badge.lv2 { background: var(--surface-2); color: #475569; border: 1px solid var(--border-strong); }
+
 /* WBSの状態表示: 親は進捗%、末端タスクは 未着手/進行中/完了。進行具合を一目で。 */
 .tree-row .row-status { flex: 0 0 auto; min-width: 38px; text-align: right; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .tree-row .row-status.todo { color: #94a3b8; }
