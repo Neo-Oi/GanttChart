@@ -188,25 +188,29 @@ const Gantt = (() => {
         const left = dateToX(sp.start);
         const width = Math.max((dayDiff(sp.start, sp.end) + 1) * scale.pxPerDay, 6);
         const draggable = !r.hasChildren;
+        // バーのラベルにも実稼働日数「(N日)」を付ける(土日・祝日を除く)。
+        const wdays = Holidays.countWorkingDays(sp.start, sp.end);
+        const nameDays = `${escapeHtml(n.name)}<span class="bar-days">(${wdays}日)</span>`;
+        const titleDays = `${escapeHtml(n.name)}(${wdays}稼働日)`;
         if (r.level === 2) {
           // タスク(常に葉): ステータス濃淡・最細・ドラッグ可。
           const st = Schedules.effectiveStatus(n);
-          const label = width > 40 ? `<span class="bar-label">${escapeHtml(n.name)}</span>` : '';
-          bar = `<div class="bar lv2 ${st}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}">
+          const label = width > 40 ? `<span class="bar-label">${nameDays}</span>` : '';
+          bar = `<div class="bar lv2 ${st}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${titleDays}">
                    <span class="grip left"></span>${label}<span class="grip right"></span>
                  </div>`;
         } else {
           // スケジュール/サブスケジュール: レベル色。子が無ければ自身の日程を直接ドラッグできる。
           const lv = r.level === 0 ? 'lv0' : 'lv1';
-          const label = `<span class="bar-label">${escapeHtml(n.name)}</span>`;
+          const label = `<span class="bar-label">${nameDays}</span>`;
           if (draggable) {
-            bar = `<div class="bar ${lv}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}">
+            bar = `<div class="bar ${lv}" data-bar="${n.id}" style="left:${left}px;width:${width}px" title="${titleDays}">
                      <span class="grip left"></span>${label}<span class="grip right"></span>
                    </div>`;
           } else {
             // 子を持つ親(サマリー): 期間の伸縮は不可(子から集計)だが、
             // バー本体をドラッグして配下ごと「ずらす」ことはできる。グリップ(端リサイズ)は付けない。
-            bar = `<div class="bar summary ${lv}" data-bar="${n.id}" data-summary="1" style="left:${left}px;width:${width}px" title="${escapeHtml(n.name)}(ドラッグで配下ごと移動)">${label}</div>`;
+            bar = `<div class="bar summary ${lv}" data-bar="${n.id}" data-summary="1" style="left:${left}px;width:${width}px" title="${titleDays}(ドラッグで配下ごと移動)">${label}</div>`;
           }
         }
       }
