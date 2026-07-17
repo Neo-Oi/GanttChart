@@ -28,6 +28,7 @@ APP_FILES = [
     "app/projects.js",
     "app/schedules.js",
     "app/dependencies.js",
+    "app/tasks.js",
     "app/milestones.js",
     "app/gantt.js",
     "app/assist.js",

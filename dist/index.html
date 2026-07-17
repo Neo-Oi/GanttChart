@@ -48,9 +48,9 @@ body[data-mode="assist"] {
   --accent-strong: #0b7a54;
   --accent-soft: #e7f8f1;
   --accent-line: #86dcbb;
-  --tone-todo: #c4ecda;   /* 淡(白背景に近い緑) */
-  --tone-doing: #17a878;  /* 中 */
-  --tone-done: #0a5e42;   /* 濃 */
+  --tone-todo: #0a5e42;   /* 濃(未着手) */
+  --tone-doing: #17a878;  /* 中(進行中) */
+  --tone-done: #c4ecda;   /* 淡(完了) */
 }
 
 /* ノーマルモード: 青基調。同系色の濃淡。 */
@@ -59,9 +59,9 @@ body[data-mode="normal"] {
   --accent-strong: #1d4ed8;
   --accent-soft: #e8f0fe;
   --accent-line: #9cc0fb;
-  --tone-todo: #cfe0fb;   /* 淡 */
-  --tone-doing: #2f6ff0;  /* 中 */
-  --tone-done: #17379e;   /* 濃 */
+  --tone-todo: #17379e;   /* 濃(未着手) */
+  --tone-doing: #2f6ff0;  /* 中(進行中) */
+  --tone-done: #cfe0fb;   /* 淡(完了) */
 }
 
 * { box-sizing: border-box; }
@@ -261,6 +261,14 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 .icon-btn:hover { background: var(--border); color: var(--text); }
 
+.task-chip {
+  flex: 0 0 auto; height: 22px; padding: 0 9px; margin-left: 2px;
+  border: 1px solid var(--accent-line); border-radius: 999px;
+  background: var(--accent-soft); color: var(--accent-strong);
+  font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.task-chip:hover { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
 .status-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 9px; display: inline-block; border: 1px solid rgba(15,23,42,.12); }
 .status-dot.todo { background: var(--tone-todo); }
 .status-dot.doing { background: var(--tone-doing); }
@@ -320,25 +328,44 @@ body[data-mode="normal"] #assistPane { display: none; }
   user-select: none;
 }
 .bar:active { cursor: grabbing; }
+.bar[data-bar] { transition: box-shadow .12s, filter .12s, transform .06s; }
+.bar[data-bar]:hover { box-shadow: 0 2px 8px rgba(15,23,42,.28); filter: brightness(1.04); }
+/* ドラッグ可能を示すハンドル(ホバーで表示) */
+.bar[data-bar]:hover .grip::after {
+  content: ""; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  width: 3px; height: 55%; border-left: 2px solid rgba(255,255,255,.85); border-right: 2px solid rgba(255,255,255,.85);
+}
+.bar.done[data-bar]:hover .grip::after { border-color: rgba(30,41,59,.6); }
+.bar.dragging { box-shadow: 0 8px 24px rgba(15,23,42,.4) !important; filter: brightness(1.06); outline: 2px solid #fff; outline-offset: -1px; z-index: 9; opacity: .95; }
 .bar .bar-label { pointer-events: none; text-shadow: 0 1px 1px rgba(0,0,0,.18); }
-.bar .grip { position: absolute; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.bar .grip { position: absolute; top: 0; bottom: 0; width: 9px; cursor: ew-resize; }
 .bar .grip.left { left: 0; } .bar .grip.right { right: 0; }
-/* ステータスは同系色の濃淡。未着手は淡いので文字は濃色にする。 */
-.bar.todo { background: var(--tone-todo); color: #1e293b; }
-.bar.todo .bar-label { text-shadow: none; }
-.bar.doing { background: var(--tone-doing); }
-.bar.done { background: var(--tone-done); }
 
-/* サマリーバー(スケジュール/サブスケジュール)は中立の灰色のまま。 */
+/* ドラッグ中の日付ツールチップ */
+.drag-tip {
+  position: fixed; z-index: 300; pointer-events: none;
+  background: #1e293b; color: #fff; font-size: 12px; font-weight: 600;
+  padding: 5px 10px; border-radius: 6px; box-shadow: var(--shadow-md);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+/* ステータスは同系色の濃淡(未着手=濃 → 完了=淡)。完了は淡いので文字を濃色に。 */
+.bar.todo { background: var(--tone-todo); }
+.bar.doing { background: var(--tone-doing); }
+.bar.done { background: var(--tone-done); color: #1e293b; }
+.bar.done .bar-label { text-shadow: none; }
+
+/* サマリーバー。スケジュール(淡グレー)とサブスケジュール(濃グレー)で色を分ける。 */
 .bar.summary {
   top: 14px; height: calc(var(--row-h) - 26px);
-  background: var(--bar-summary); border-radius: 3px; cursor: default;
+  background: var(--bs, #475569); border-radius: 3px; cursor: default;
   box-shadow: none; opacity: .95;
 }
+.bar.summary.lv0 { --bs: #a3adbb; }  /* スケジュール = 淡グレー */
+.bar.summary.lv1 { --bs: #4b5563; }  /* サブスケジュール = 濃グレー */
 .bar.summary::before, .bar.summary::after {
   content: ""; position: absolute; bottom: -5px; width: 0; height: 0;
   border-left: 5px solid transparent; border-right: 5px solid transparent;
-  border-top: 6px solid var(--bar-summary);
+  border-top: 6px solid var(--bs, #475569);
 }
 .bar.summary::before { left: 0; } .bar.summary::after { right: 0; }
 
@@ -422,9 +449,36 @@ body[data-mode="normal"] #assistPane { display: none; }
   animation: slidein .18s ease;
 }
 @keyframes slidein { from { transform: translateX(30px); opacity: .6; } to { transform: none; opacity: 1; } }
-.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); }
+.side-panel { display: flex; flex-direction: column; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
 .panel-head h2 { margin: 0; font-size: 15px; }
-.panel-body { padding: 16px 20px; }
+.panel-body { padding: 16px 20px; flex: 1 1 auto; overflow-y: auto; }
+.panel-sub { flex: 0 0 auto; padding: 12px 20px; background: var(--accent-soft); border-bottom: 1px solid var(--border); }
+.panel-sub .tp-subname { font-size: 14px; font-weight: 700; color: var(--accent-strong); }
+.panel-sub .tp-hint { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.panel-foot { flex: 0 0 auto; padding: 14px 20px; border-top: 1px solid var(--border); }
+
+/* タスク管理パネル */
+.tp-empty { color: var(--text-faint); font-size: 13px; text-align: center; padding: 30px 10px; }
+.tp-task {
+  display: flex; align-items: center; gap: 10px; padding: 10px 8px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 8px; background: var(--surface);
+}
+.tp-task:hover { border-color: var(--border-strong); }
+.tp-main { flex: 1 1 auto; min-width: 0; }
+.tp-name { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tp-meta { font-size: 11px; color: var(--text-faint); font-variant-numeric: tabular-nums; }
+.tp-task .row-actions2 { display: flex; gap: 2px; }
+.seg-mini { display: inline-flex; gap: 3px; flex: 0 0 auto; }
+.seg-mini button {
+  width: 16px; height: 16px; border-radius: 4px; border: 1px solid var(--border-strong);
+  background: var(--surface); padding: 0; opacity: .5;
+}
+.seg-mini button.on { opacity: 1; border-color: transparent; }
+.seg-mini button.todo.on { background: var(--tone-todo); }
+.seg-mini button.doing.on { background: var(--tone-doing); }
+.seg-mini button.done.on { background: var(--tone-done); }
+.seg-mini button:not(.on):hover { opacity: .85; }
 
 .field { margin-bottom: 14px; }
 .field label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; }
@@ -1084,7 +1138,8 @@ const Schedules = (() => {
     return map;
   }
 
-  // 折りたたみを反映した表示順の平坦リスト。
+  // 折りたたみを反映した表示順の平坦リスト(スケジュール→サブスケジュール→タスクの入れ子順)。
+  // タスクはガント/ツリーにも表示しつつ、タスク管理パネルからも編集できる(併用)。
   function flattenForDisplay() {
     const rows = [];
     function walk(parentId, level) {
@@ -1141,10 +1196,17 @@ const Schedules = (() => {
       const st = effectiveStatus(n);
       const sp = effectiveSpan(n);
       const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
+      // 子を持つノード(スケジュール/タスク持ちサブスケジュール)は展開用の三角。タスクは葉。
       const twist = r.hasChildren
         ? `<button class="twist" data-toggle="${n.id}">${uiState.collapsed[n.id] ? '▶' : '▼'}</button>`
         : `<span class="twist leaf">•</span>`;
-      const canAddChild = r.level < MAX_LEVEL;
+      // サブスケジュール(level 1)には常時表示のタスク管理チップ。
+      const persistent = r.level === 1
+        ? `<button class="task-chip" data-tasks="${n.id}" title="タスク管理を開く">☑ ${childrenOf(n.id).length}</button>`
+        : '';
+      // level 0,1 は子を追加できる(スケジュール→サブ、サブ→タスク)。
+      const hoverAdd = r.level < MAX_LEVEL
+        ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : '';
       return `
         <div class="tree-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
              style="padding-left:${8 + r.level * 16}px">
@@ -1153,8 +1215,9 @@ const Schedules = (() => {
           <span class="num">${nums[n.id] || ''}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
           <span class="meta">${meta}</span>
+          ${persistent}
           <span class="row-actions">
-            ${canAddChild ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : ''}
+            ${hoverAdd}
             <button class="icon-btn" data-edit="${n.id}" title="編集">✎</button>
             <button class="icon-btn" data-del="${n.id}" title="削除">🗑</button>
           </span>
@@ -1182,8 +1245,17 @@ const Schedules = (() => {
     const eg = examples(level);
     const n = editing || {};
 
-    const start = n.startDate || '';
-    const end = n.endDate || '';
+    let start = n.startDate || '';
+    let end = n.endDate || '';
+    // 新規の子は、初期値として親の日程を受け継ぐ(サブスケジュール←スケジュール等)。
+    if (!editing && parentId) {
+      const parent = byId(parentId);
+      const psp = parent
+        ? (effectiveSpan(parent) || (parent.startDate && parent.endDate
+            ? { start: parseDate(parent.startDate), end: parseDate(parent.endDate) } : null))
+        : null;
+      if (psp) { start = fmtDate(psp.start); end = fmtDate(psp.end); }
+    }
     let dur = '';
     if (start && end) dur = Holidays.countWorkingDays(parseDate(start), parseDate(end));
 
@@ -1475,6 +1547,89 @@ const Dependencies = (() => {
 })();
 
 
+// ===== app/tasks.js =====
+// ==== app/tasks.js ====
+// タスク管理画面(サブスケジュールから開くサイドパネル)。
+// タスクはガント本体にも表示されるが、このパネルでは一覧で手早く追加・編集・状態変更・削除できる。
+// データ変更は Store.renderAll を経由するため、このパネルは購読(refresh)で自動更新される。
+
+const TaskPanel = (() => {
+  let openSubId = null;
+
+  function open(subId) {
+    openSubId = subId;
+    UI.openPanel(`
+      <div class="panel-head">
+        <h2>タスク管理</h2>
+        <button class="icon-btn" data-close>✕</button>
+      </div>
+      <div class="panel-sub" id="taskPanelSub"></div>
+      <div class="panel-body" id="taskPanelBody"></div>
+      <div class="panel-foot"><button class="btn primary" id="taskAddBtn" style="width:100%">＋ タスクを追加</button></div>
+    `, {
+      onOpen(panel) {
+        const body = panel.querySelector('#taskPanelBody');
+        body.addEventListener('click', (e) => {
+          const taskEl = e.target.closest('[data-task]');
+          if (!taskEl) return;
+          const st = e.target.closest('[data-st]');
+          if (st) { Schedules.setStatus(taskEl.dataset.task, st.dataset.st); return; }
+          if (e.target.closest('[data-edit]')) { Schedules.openEditor({ id: taskEl.dataset.task }); return; }
+          if (e.target.closest('[data-del]')) { Schedules.del(taskEl.dataset.task); return; }
+        });
+        panel.querySelector('#taskAddBtn').onclick = () =>
+          Schedules.openEditor({ parentId: openSubId, level: 2 });
+        renderBody();
+      }
+    });
+  }
+
+  function renderBody() {
+    const body = document.getElementById('taskPanelBody');
+    const sub = document.getElementById('taskPanelSub');
+    if (!body || !sub) return;
+    const s = Schedules.byId(openSubId);
+    if (!s) { sub.innerHTML = '<div class="tp-subname">(削除されました)</div>'; body.innerHTML = ''; return; }
+    sub.innerHTML = `<div class="tp-subname">${escapeHtml(s.name)}</div>
+      <div class="tp-hint">このサブスケジュールに属するタスクを管理します。状態の○は左から 未着手 / 進行中 / 完了。</div>`;
+    const tasks = Schedules.childrenOf(openSubId);
+    if (!tasks.length) {
+      body.innerHTML = `<p class="tp-empty">まだタスクがありません。<br>下の「＋ タスクを追加」から作りましょう。</p>`;
+      return;
+    }
+    body.innerHTML = tasks.map(t => {
+      const st = t.status || 'todo';
+      const span = (t.startDate && t.endDate) ? `${t.startDate} 〜 ${t.endDate}` : '期間未設定';
+      return `<div class="tp-task" data-task="${t.id}">
+        <div class="seg-mini">
+          <button data-st="todo" class="todo ${st === 'todo' ? 'on' : ''}" title="未着手"></button>
+          <button data-st="doing" class="doing ${st === 'doing' ? 'on' : ''}" title="進行中"></button>
+          <button data-st="done" class="done ${st === 'done' ? 'on' : ''}" title="完了"></button>
+        </div>
+        <div class="tp-main">
+          <div class="tp-name">${escapeHtml(t.name)}</div>
+          <div class="tp-meta">${escapeHtml(span)}${t.assignee ? ' ・ ' + escapeHtml(t.assignee) : ''}</div>
+        </div>
+        <div class="row-actions2">
+          <button class="icon-btn" data-edit title="編集">✎</button>
+          <button class="icon-btn" data-del title="削除">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Store の再レンダリングに追随してパネルを更新(データ変更時に自動反映)。
+  function refresh() {
+    if (!openSubId) return;
+    const host = document.getElementById('panelHost');
+    if (!host || host.classList.contains('hidden')) { openSubId = null; return; }
+    renderBody();
+  }
+
+  return { open, refresh };
+})();
+
+
 // ===== app/milestones.js =====
 // ==== app/milestones.js ====
 // マイルストーン: 期間を持たない、特定日付の目印(納期・レビュー会など)。
@@ -1665,7 +1820,7 @@ const Gantt = (() => {
         const left = dateToX(sp.start);
         const width = Math.max((dayDiff(sp.start, sp.end) + 1) * scale.pxPerDay, 6);
         if (r.hasChildren) {
-          bar = `<div class="bar summary" style="left:${left}px;width:${width}px"><span class="bar-label">${escapeHtml(n.name)}</span></div>`;
+          bar = `<div class="bar summary lv${r.level}" style="left:${left}px;width:${width}px"><span class="bar-label">${escapeHtml(n.name)}</span></div>`;
         } else {
           const st = Schedules.effectiveStatus(n);
           const label = width > 40 ? `<span class="bar-label">${escapeHtml(n.name)}</span>` : '';
@@ -1748,6 +1903,17 @@ const Gantt = (() => {
     const durDays = dayDiff(origStart, origEnd);
     e.preventDefault();
     document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
+    barEl.classList.add('dragging');
+
+    // ドラッグ中の日付ツールチップ
+    const tip = document.createElement('div');
+    tip.className = 'drag-tip';
+    document.body.appendChild(tip);
+    function showTip(ev, ns, ne) {
+      tip.textContent = `${fmtDate(ns)} 〜 ${fmtDate(ne)}(${Holidays.countWorkingDays(ns, ne)}稼働日)`;
+      tip.style.left = (ev.clientX + 14) + 'px';
+      tip.style.top = (ev.clientY + 16) + 'px';
+    }
 
     function onMove(ev) {
       const deltaDays = Math.round((ev.clientX - startX) / scale.pxPerDay);
@@ -1758,11 +1924,14 @@ const Gantt = (() => {
       barEl.style.left = dateToX(ns) + 'px';
       barEl.style.width = Math.max((dayDiff(ns, ne) + 1) * scale.pxPerDay, 6) + 'px';
       barEl._pending = { start: fmtDate(ns), end: fmtDate(ne) };
+      showTip(ev, ns, ne);
     }
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
+      barEl.classList.remove('dragging');
+      tip.remove();
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
         Schedules.updateDates(id, p.start, p.end);
@@ -2080,6 +2249,7 @@ async function init() {
   Store.subscribe(['gantt'], Gantt.renderGantt);
   Store.subscribe(['assist'], Assist.renderAssist);
   Store.subscribe(['gantt', 'tree'], renderProgress);
+  Store.subscribe(['gantt', 'tree'], TaskPanel.refresh);
 
   wireHeader();
   wireTree();
@@ -2171,6 +2341,8 @@ function wireTree() {
       Schedules.openEditor({ parentId: parent.id, level: Schedules.levelOf(parent) + 1 });
       return;
     }
+    const tasks = e.target.closest('[data-tasks]');
+    if (tasks) { TaskPanel.open(tasks.dataset.tasks); return; }
     const edit = e.target.closest('[data-edit]');
     if (edit) { Schedules.openEditor({ id: edit.dataset.edit }); return; }
     const del = e.target.closest('[data-del]');

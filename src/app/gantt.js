@@ -110,7 +110,7 @@ const Gantt = (() => {
         const left = dateToX(sp.start);
         const width = Math.max((dayDiff(sp.start, sp.end) + 1) * scale.pxPerDay, 6);
         if (r.hasChildren) {
-          bar = `<div class="bar summary" style="left:${left}px;width:${width}px"><span class="bar-label">${escapeHtml(n.name)}</span></div>`;
+          bar = `<div class="bar summary lv${r.level}" style="left:${left}px;width:${width}px"><span class="bar-label">${escapeHtml(n.name)}</span></div>`;
         } else {
           const st = Schedules.effectiveStatus(n);
           const label = width > 40 ? `<span class="bar-label">${escapeHtml(n.name)}</span>` : '';
@@ -193,6 +193,17 @@ const Gantt = (() => {
     const durDays = dayDiff(origStart, origEnd);
     e.preventDefault();
     document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
+    barEl.classList.add('dragging');
+
+    // ドラッグ中の日付ツールチップ
+    const tip = document.createElement('div');
+    tip.className = 'drag-tip';
+    document.body.appendChild(tip);
+    function showTip(ev, ns, ne) {
+      tip.textContent = `${fmtDate(ns)} 〜 ${fmtDate(ne)}(${Holidays.countWorkingDays(ns, ne)}稼働日)`;
+      tip.style.left = (ev.clientX + 14) + 'px';
+      tip.style.top = (ev.clientY + 16) + 'px';
+    }
 
     function onMove(ev) {
       const deltaDays = Math.round((ev.clientX - startX) / scale.pxPerDay);
@@ -203,11 +214,14 @@ const Gantt = (() => {
       barEl.style.left = dateToX(ns) + 'px';
       barEl.style.width = Math.max((dayDiff(ns, ne) + 1) * scale.pxPerDay, 6) + 'px';
       barEl._pending = { start: fmtDate(ns), end: fmtDate(ne) };
+      showTip(ev, ns, ne);
     }
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
       document.body.style.cursor = '';
+      barEl.classList.remove('dragging');
+      tip.remove();
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
         Schedules.updateDates(id, p.start, p.end);

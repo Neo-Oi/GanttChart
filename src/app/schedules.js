@@ -35,7 +35,8 @@ const Schedules = (() => {
     return map;
   }
 
-  // 折りたたみを反映した表示順の平坦リスト。
+  // 折りたたみを反映した表示順の平坦リスト(スケジュール→サブスケジュール→タスクの入れ子順)。
+  // タスクはガント/ツリーにも表示しつつ、タスク管理パネルからも編集できる(併用)。
   function flattenForDisplay() {
     const rows = [];
     function walk(parentId, level) {
@@ -92,10 +93,17 @@ const Schedules = (() => {
       const st = effectiveStatus(n);
       const sp = effectiveSpan(n);
       const meta = sp ? `${fmtRangeLabel(sp.start)}–${fmtRangeLabel(sp.end)}` : '日付未設定';
+      // 子を持つノード(スケジュール/タスク持ちサブスケジュール)は展開用の三角。タスクは葉。
       const twist = r.hasChildren
         ? `<button class="twist" data-toggle="${n.id}">${uiState.collapsed[n.id] ? '▶' : '▼'}</button>`
         : `<span class="twist leaf">•</span>`;
-      const canAddChild = r.level < MAX_LEVEL;
+      // サブスケジュール(level 1)には常時表示のタスク管理チップ。
+      const persistent = r.level === 1
+        ? `<button class="task-chip" data-tasks="${n.id}" title="タスク管理を開く">☑ ${childrenOf(n.id).length}</button>`
+        : '';
+      // level 0,1 は子を追加できる(スケジュール→サブ、サブ→タスク)。
+      const hoverAdd = r.level < MAX_LEVEL
+        ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : '';
       return `
         <div class="tree-row ${uiState.selectedId === n.id ? 'selected' : ''}" data-id="${n.id}"
              style="padding-left:${8 + r.level * 16}px">
@@ -104,8 +112,9 @@ const Schedules = (() => {
           <span class="num">${nums[n.id] || ''}</span>
           <span class="name lv${r.level}" data-edit="${n.id}">${escapeHtml(n.name)}</span>
           <span class="meta">${meta}</span>
+          ${persistent}
           <span class="row-actions">
-            ${canAddChild ? `<button class="icon-btn" data-addchild="${n.id}" title="${LEVEL_NAME[r.level + 1]}を追加">＋</button>` : ''}
+            ${hoverAdd}
             <button class="icon-btn" data-edit="${n.id}" title="編集">✎</button>
             <button class="icon-btn" data-del="${n.id}" title="削除">🗑</button>
           </span>
@@ -133,8 +142,17 @@ const Schedules = (() => {
     const eg = examples(level);
     const n = editing || {};
 
-    const start = n.startDate || '';
-    const end = n.endDate || '';
+    let start = n.startDate || '';
+    let end = n.endDate || '';
+    // 新規の子は、初期値として親の日程を受け継ぐ(サブスケジュール←スケジュール等)。
+    if (!editing && parentId) {
+      const parent = byId(parentId);
+      const psp = parent
+        ? (effectiveSpan(parent) || (parent.startDate && parent.endDate
+            ? { start: parseDate(parent.startDate), end: parseDate(parent.endDate) } : null))
+        : null;
+      if (psp) { start = fmtDate(psp.start); end = fmtDate(psp.end); }
+    }
     let dur = '';
     if (start && end) dur = Holidays.countWorkingDays(parseDate(start), parseDate(end));
 
