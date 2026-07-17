@@ -205,7 +205,9 @@ const Gantt = (() => {
       : 'move';
     const startX = e.clientX;
     const origStart = sp.start, origEnd = sp.end;
-    const durDays = dayDiff(origStart, origEnd);
+    const origLeftPx = dateToX(origStart);
+    const origRightPx = dateToX(origEnd) + scale.pxPerDay; // バー右端のピクセル位置
+    const MIN_PX = 6;
     e.preventDefault();
     document.body.style.cursor = mode === 'move' ? 'grabbing' : 'ew-resize';
     barEl.classList.add('dragging');
@@ -220,14 +222,28 @@ const Gantt = (() => {
       tip.style.top = (ev.clientY + 16) + 'px';
     }
 
+    // 見た目はマウスに1pxずつ連続追従させ(リアルタイム感を出す)、
+    // 確定する日付だけ「何日分動いたか」を丸めて計算する。
     function onMove(ev) {
-      const deltaDays = Math.round((ev.clientX - startX) / scale.pxPerDay);
-      let ns = origStart, ne = origEnd;
-      if (mode === 'move') { ns = addDays(origStart, deltaDays); ne = addDays(origEnd, deltaDays); }
-      else if (mode === 'resize-l') { ns = addDays(origStart, deltaDays); if (dayDiff(ns, ne) < 0) ns = ne; }
-      else if (mode === 'resize-r') { ne = addDays(origEnd, deltaDays); if (dayDiff(ns, ne) < 0) ne = ns; }
-      barEl.style.left = dateToX(ns) + 'px';
-      barEl.style.width = Math.max((dayDiff(ns, ne) + 1) * scale.pxPerDay, 6) + 'px';
+      const deltaPx = ev.clientX - startX;
+      const deltaDays = Math.round(deltaPx / scale.pxPerDay);
+      let ns = origStart, ne = origEnd, leftPx, widthPx;
+      if (mode === 'move') {
+        ns = addDays(origStart, deltaDays);
+        ne = addDays(origEnd, deltaDays);
+        leftPx = origLeftPx + deltaPx;
+        widthPx = origRightPx - origLeftPx;
+      } else if (mode === 'resize-l') {
+        ns = addDays(origStart, deltaDays); if (dayDiff(ns, ne) < 0) ns = ne;
+        leftPx = Math.min(origLeftPx + deltaPx, origRightPx - MIN_PX);
+        widthPx = origRightPx - leftPx;
+      } else {
+        ne = addDays(origEnd, deltaDays); if (dayDiff(ns, ne) < 0) ne = ns;
+        leftPx = origLeftPx;
+        widthPx = Math.max(origRightPx - origLeftPx + deltaPx, MIN_PX);
+      }
+      barEl.style.left = leftPx + 'px';
+      barEl.style.width = widthPx + 'px';
       barEl._pending = { start: fmtDate(ns), end: fmtDate(ne) };
       showTip(ev, ns, ne);
     }
@@ -240,6 +256,9 @@ const Gantt = (() => {
       const p = barEl._pending;
       if (p && (p.start !== fmtDate(origStart) || p.end !== fmtDate(origEnd))) {
         Schedules.updateDates(id, p.start, p.end);
+      } else {
+        // 変化なし(またはスナップで元に戻った)ときは、日付グリッドの位置に戻す。
+        renderGantt();
       }
     }
     document.addEventListener('mousemove', onMove);
