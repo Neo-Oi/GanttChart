@@ -90,11 +90,14 @@ const History = (() => {
   async function restoreTo(entryId, panelHandle) {
     const entry = state.history.find(e => e.id === entryId);
     if (!entry || !entry.snap) return;
+    // #panelHost はモーダルより前面(z-index)なので、開いたまま UI.confirm を呼ぶと
+    // 確認モーダルがこのパネルの背景に隠れて見えなくなる。先に閉じてから確認する
+    // (TaskPanel.closeThen と同じ対策)。
+    if (panelHandle) panelHandle.close();
     const ok = await UI.confirm('この時点の状態に戻します。よろしいですか?(この操作も「元に戻す」で取り消せます)', { okLabel: '戻す' });
     if (!ok) return;
     snapshot(); // 復元前の状態を undo スタックへ
     await applySnapshot(entry.snap);
-    if (panelHandle) panelHandle.close();
     toast('この時点に戻しました');
     Store.renderAll();
   }

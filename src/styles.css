@@ -358,7 +358,8 @@ body[data-mode="normal"] #assistPane { display: none; }
   height: 46px;
   position: relative;
 }
-.gantt-body { flex: 1 1 auto; overflow: auto; position: relative; }
+.gantt-body { flex: 1 1 auto; overflow: auto; position: relative; cursor: grab; }
+.gantt-body.panning { cursor: grabbing; }
 
 .gantt-scale { position: relative; height: 46px; }
 .scale-tick {
@@ -536,12 +537,19 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 
 /* ===== モーダル / パネル ===== */
+/* 暗幕(dim)は別レイヤ #modalBackdrop に分離し、メモ(z-index 150)より下に置く。
+   ホスト自体は透明・クリック透過にし、本体(.modal/.side-panel)だけ操作可能。
+   これで「メモは暗転しない・モーダルはメモより前面(かぶったら上)」を両立する。 */
 .modal-host, .panel-host {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: 160;   /* メモ(150)より前面 */
   display: flex; align-items: center; justify-content: center;
-  background: rgba(15, 23, 42, .38);
+  background: transparent; pointer-events: none;
 }
+.modal-host > *, .panel-host > * { pointer-events: auto; }  /* 本体は操作可(透過の穴あけ) */
 .modal-host.hidden, .panel-host.hidden { display: none; }
+/* 暗幕: アプリより上・メモ(150)より下。画面は暗転するがメモは暗転しない。外側クリックで閉じる。 */
+.modal-backdrop { position: fixed; inset: 0; z-index: 145; background: rgba(15, 23, 42, .38); }
+.modal-backdrop.hidden { display: none; }
 .modal {
   width: min(520px, 92vw); max-height: 92vh; overflow-y: auto;
   background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
@@ -781,8 +789,8 @@ html[data-theme="dark"] .grid-holiday { background: rgba(248, 113, 113, .10); }
 html[data-theme="dark"] .gantt-row:hover { background: rgba(148, 163, 184, .08); }
 /* トースト/ドラッグ中ツールチップは背景と沈まないよう一段明るく */
 html[data-theme="dark"] .toast, html[data-theme="dark"] .drag-tip { background: #334155; }
-/* モーダルの背景幕は濃く */
-html[data-theme="dark"] .modal-host, html[data-theme="dark"] .panel-host { background: rgba(0, 0, 0, .55); }
+/* モーダルの背景幕は濃く(暗幕は別レイヤ #modalBackdrop) */
+html[data-theme="dark"] .modal-backdrop { background: rgba(0, 0, 0, .55); }
 /* ドラッグゴースト等の白系アウトラインを控えめに */
 html[data-theme="dark"] .bar.dragging, html[data-theme="dark"] .bar-ghost { outline-color: rgba(226, 232, 240, .8); }
 
