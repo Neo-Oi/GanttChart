@@ -365,7 +365,8 @@ body[data-mode="normal"] #assistPane { display: none; }
   height: 46px;
   position: relative;
 }
-.gantt-body { flex: 1 1 auto; overflow: auto; position: relative; }
+.gantt-body { flex: 1 1 auto; overflow: auto; position: relative; cursor: grab; }
+.gantt-body.panning { cursor: grabbing; }
 
 .gantt-scale { position: relative; height: 46px; }
 .scale-tick {
@@ -543,12 +544,19 @@ body[data-mode="normal"] #assistPane { display: none; }
 }
 
 /* ===== モーダル / パネル ===== */
+/* 暗幕(dim)は別レイヤ #modalBackdrop に分離し、メモ(z-index 150)より下に置く。
+   ホスト自体は透明・クリック透過にし、本体(.modal/.side-panel)だけ操作可能。
+   これで「メモは暗転しない・モーダルはメモより前面(かぶったら上)」を両立する。 */
 .modal-host, .panel-host {
-  position: fixed; inset: 0; z-index: 100;
+  position: fixed; inset: 0; z-index: 160;   /* メモ(150)より前面 */
   display: flex; align-items: center; justify-content: center;
-  background: rgba(15, 23, 42, .38);
+  background: transparent; pointer-events: none;
 }
+.modal-host > *, .panel-host > * { pointer-events: auto; }  /* 本体は操作可(透過の穴あけ) */
 .modal-host.hidden, .panel-host.hidden { display: none; }
+/* 暗幕: アプリより上・メモ(150)より下。画面は暗転するがメモは暗転しない。外側クリックで閉じる。 */
+.modal-backdrop { position: fixed; inset: 0; z-index: 145; background: rgba(15, 23, 42, .38); }
+.modal-backdrop.hidden { display: none; }
 .modal {
   width: min(520px, 92vw); max-height: 92vh; overflow-y: auto;
   background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
@@ -788,8 +796,8 @@ html[data-theme="dark"] .grid-holiday { background: rgba(248, 113, 113, .10); }
 html[data-theme="dark"] .gantt-row:hover { background: rgba(148, 163, 184, .08); }
 /* トースト/ドラッグ中ツールチップは背景と沈まないよう一段明るく */
 html[data-theme="dark"] .toast, html[data-theme="dark"] .drag-tip { background: #334155; }
-/* モーダルの背景幕は濃く */
-html[data-theme="dark"] .modal-host, html[data-theme="dark"] .panel-host { background: rgba(0, 0, 0, .55); }
+/* モーダルの背景幕は濃く(暗幕は別レイヤ #modalBackdrop) */
+html[data-theme="dark"] .modal-backdrop { background: rgba(0, 0, 0, .55); }
 /* ドラッグゴースト等の白系アウトラインを控えめに */
 html[data-theme="dark"] .bar.dragging, html[data-theme="dark"] .bar-ghost { outline-color: rgba(226, 232, 240, .8); }
 
@@ -874,6 +882,9 @@ html[data-theme="dark"] .bar.dragging, html[data-theme="dark"] .bar-ghost { outl
         <div id="assistGuide"></div>
       </aside>
     </div>
+
+    <!-- モーダル/パネルの暗幕(メモより下のレイヤ。メモは暗転させない) -->
+    <div id="modalBackdrop" class="modal-backdrop hidden"></div>
 
     <!-- プロジェクトメモ(非モーダル・背景をブロックしないドッキングパネル) -->
     <div id="notesFloatHost" class="notes-float hidden"></div>
@@ -1287,6 +1298,40 @@ const Store = (() => {
 // モーダル本体の内部要素にリスナーをアタッチしても蓄積しない。
 
 const UI = (() => {
+  // 暗幕(#modalBackdrop): メモより下のレイヤで画面を暗転させる。外側クリックで閉じる。
+  function showBackdrop(onClick) {
+    const b = document.getElementById('modalBackdrop');
+    if (!b) return;
+    b.classList.remove('hidden');
+    b.onclick = onClick || null;
+  }
+  function hideBackdrop() {
+    const b = document.getElementById('modalBackdrop');
+    if (!b) return;
+    b.classList.add('hidden');
+    b.onclick = null;
+  }
+
+  // モーダルを「メモと極力両立」する位置に置く。
+  // - メモが閉じている / 広幅で中央でも重ならない → 中央(既定)
+  // - 中央だとメモに重なる幅 → メモ左端へ右揃え(左に収まる場合)。収まらなければ中央フォールバック。
+  function positionModal(host) {
+    const modal = host.firstElementChild;
+    if (!modal) return;
+    const reset = () => { host.style.justifyContent = ''; host.style.paddingRight = ''; };
+    const memo = document.getElementById('notesFloatHost');
+    if (!memo || memo.classList.contains('hidden')) { reset(); return; }
+    const memoLeft = memo.getBoundingClientRect().left;
+    const modalW = modal.getBoundingClientRect().width;
+    const GAP = 12;
+    const centeredRight = window.innerWidth / 2 + modalW / 2;
+    if (centeredRight <= memoLeft - GAP) { reset(); return; }          // 重ならない → 中央
+    if (memoLeft - GAP >= modalW) {                                     // 左に収まる → メモ左端へ右揃え
+      host.style.justifyContent = 'flex-end';
+      host.style.paddingRight = (window.innerWidth - memoLeft + GAP) + 'px';
+    } else { reset(); }                                                // 収まらない → 中央(メモの上に出る)
+  }
+
   function openModal(html, opts) {
     opts = opts || {};
     const host = document.getElementById('modalHost');
@@ -1295,11 +1340,17 @@ const UI = (() => {
 
     const modal = host.firstElementChild;
     const form = modal.querySelector('form');
+    const reposition = () => positionModal(host);
 
-    function close() { host.classList.add('hidden'); host.innerHTML = ''; }
+    function close() {
+      host.classList.add('hidden'); host.innerHTML = '';
+      host.style.justifyContent = ''; host.style.paddingRight = '';
+      window.removeEventListener('resize', reposition);
+      hideBackdrop();
+    }
 
-    // 閉じる系
-    host.onclick = (e) => { if (e.target === host) close(); };
+    // 閉じる系: ホストは pointer-events:none なので、外側クリックは暗幕が受ける。
+    showBackdrop(close);
     modal.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
 
     if (form && opts.onSubmit) {
@@ -1312,6 +1363,9 @@ const UI = (() => {
     if (opts.onOpen) opts.onOpen(modal);
     const first = modal.querySelector('input, select, textarea');
     if (first) first.focus();
+    // 初期配置 + リサイズ追従(メモとの重なりを避け、広幅では中央)。
+    reposition();
+    window.addEventListener('resize', reposition);
     return { close, modal };
   }
 
@@ -1321,8 +1375,8 @@ const UI = (() => {
     host.innerHTML = `<div class="side-panel">${html}</div>`;
     host.classList.remove('hidden');
     const panel = host.firstElementChild;
-    function close() { host.classList.add('hidden'); host.innerHTML = ''; }
-    host.onclick = (e) => { if (e.target === host) close(); };
+    function close() { host.classList.add('hidden'); host.innerHTML = ''; hideBackdrop(); }
+    showBackdrop(close);
     panel.querySelectorAll('[data-close]').forEach(b => b.onclick = close);
     if (opts.onOpen) opts.onOpen(panel);
     return { close, panel };
@@ -3160,11 +3214,14 @@ const History = (() => {
   async function restoreTo(entryId, panelHandle) {
     const entry = state.history.find(e => e.id === entryId);
     if (!entry || !entry.snap) return;
+    // #panelHost はモーダルより前面(z-index)なので、開いたまま UI.confirm を呼ぶと
+    // 確認モーダルがこのパネルの背景に隠れて見えなくなる。先に閉じてから確認する
+    // (TaskPanel.closeThen と同じ対策)。
+    if (panelHandle) panelHandle.close();
     const ok = await UI.confirm('この時点の状態に戻します。よろしいですか?(この操作も「元に戻す」で取り消せます)', { okLabel: '戻す' });
     if (!ok) return;
     snapshot(); // 復元前の状態を undo スタックへ
     await applySnapshot(entry.snap);
-    if (panelHandle) panelHandle.close();
     toast('この時点に戻しました');
     Store.renderAll();
   }
@@ -3321,7 +3378,9 @@ function wireGantt() {
       Store.setUiState({ selectedId: bar.dataset.bar }, []);
       Schedules.renderTree();
       Gantt.beginDrag(e, bar);
+      return;
     }
+    if (e.button === 0) beginPan(e, body);
   });
   body.addEventListener('click', (e) => {
     const ms = e.target.closest('[data-ms]');
@@ -3340,6 +3399,40 @@ function wireGantt() {
 function selectNode(id) {
   Store.setUiState({ selectedId: id }, []);
   Schedules.renderTree(); Gantt.renderGantt();
+}
+
+// ガント欄の空白部分をホールド&ドラッグして上下左右にパンする(マウスのみでの移動)。
+// scrollLeft/scrollTop を直接書き換えるだけで、wireScrollSync の scroll イベントが
+// ヘッダー/ツリーへの同期と縦スクロールバーの再計算を既存フローでやってくれる。
+function beginPan(e, body) {
+  const startX = e.clientX, startY = e.clientY;
+  const startLeft = body.scrollLeft, startTop = body.scrollTop;
+  const THRESH = 4; // これ未満の移動は「クリック」として扱い、行選択を邪魔しない
+  let panning = false;
+  function onMove(ev) {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (!panning) {
+      if (Math.abs(dx) < THRESH && Math.abs(dy) < THRESH) return;
+      panning = true;
+      body.classList.add('panning');
+      document.body.style.userSelect = 'none';
+    }
+    body.scrollLeft = startLeft - dx;
+    body.scrollTop = startTop - dy;
+    ev.preventDefault();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (panning) {
+      body.classList.remove('panning');
+      document.body.style.userSelect = '';
+      // パンでマウスアップした直後の click で行選択が発火しないよう、1回だけ握りつぶす。
+      body.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true });
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 // ---- アシストガイド(項目クリックで対応モーダルを開く)----

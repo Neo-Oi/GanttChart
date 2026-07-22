@@ -145,7 +145,9 @@ function wireGantt() {
       Store.setUiState({ selectedId: bar.dataset.bar }, []);
       Schedules.renderTree();
       Gantt.beginDrag(e, bar);
+      return;
     }
+    if (e.button === 0) beginPan(e, body);
   });
   body.addEventListener('click', (e) => {
     const ms = e.target.closest('[data-ms]');
@@ -164,6 +166,40 @@ function wireGantt() {
 function selectNode(id) {
   Store.setUiState({ selectedId: id }, []);
   Schedules.renderTree(); Gantt.renderGantt();
+}
+
+// ガント欄の空白部分をホールド&ドラッグして上下左右にパンする(マウスのみでの移動)。
+// scrollLeft/scrollTop を直接書き換えるだけで、wireScrollSync の scroll イベントが
+// ヘッダー/ツリーへの同期と縦スクロールバーの再計算を既存フローでやってくれる。
+function beginPan(e, body) {
+  const startX = e.clientX, startY = e.clientY;
+  const startLeft = body.scrollLeft, startTop = body.scrollTop;
+  const THRESH = 4; // これ未満の移動は「クリック」として扱い、行選択を邪魔しない
+  let panning = false;
+  function onMove(ev) {
+    const dx = ev.clientX - startX, dy = ev.clientY - startY;
+    if (!panning) {
+      if (Math.abs(dx) < THRESH && Math.abs(dy) < THRESH) return;
+      panning = true;
+      body.classList.add('panning');
+      document.body.style.userSelect = 'none';
+    }
+    body.scrollLeft = startLeft - dx;
+    body.scrollTop = startTop - dy;
+    ev.preventDefault();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (panning) {
+      body.classList.remove('panning');
+      document.body.style.userSelect = '';
+      // パンでマウスアップした直後の click で行選択が発火しないよう、1回だけ握りつぶす。
+      body.addEventListener('click', (ev) => { ev.stopPropagation(); ev.preventDefault(); }, { capture: true, once: true });
+    }
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 }
 
 // ---- アシストガイド(項目クリックで対応モーダルを開く)----

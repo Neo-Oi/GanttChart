@@ -358,7 +358,8 @@ body[data-mode="normal"] #assistPane { display: none; }
   height: 46px;
   position: relative;
 }
-.gantt-body { flex: 1 1 auto; overflow: auto; position: relative; }
+.gantt-body { flex: 1 1 auto; overflow: auto; position: relative; cursor: grab; }
+.gantt-body.panning { cursor: grabbing; }
 
 .gantt-scale { position: relative; height: 46px; }
 .scale-tick {
