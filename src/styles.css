@@ -555,8 +555,8 @@ body[data-mode="normal"] #assistPane { display: none; }
   background: var(--surface); border-radius: 14px; box-shadow: var(--shadow-lg);
 }
 /* モーダル単位でテーマ色を上書きできる(新規作成で選択中のモードの色を反映するため)。 */
-.modal[data-mode="assist"] { --accent: #0f9d6b; --accent-strong: #0b7a54; --accent-soft: #e7f8f1; --accent-line: #86dcbb; }
-.modal[data-mode="normal"] { --accent: #2563eb; --accent-strong: #1d4ed8; --accent-soft: #e8f0fe; --accent-line: #9cc0fb; }
+.modal[data-mode="assist"] { --accent: #0f9d6b; --accent-strong: #0b7a54; --accent-soft: #e7f8f1; --accent-line: #86dcbb; --accent-text: #0b7a54; }
+.modal[data-mode="normal"] { --accent: #2563eb; --accent-strong: #1d4ed8; --accent-soft: #e8f0fe; --accent-line: #9cc0fb; --accent-text: #1d4ed8; }
 .modal[data-mode] { border-top: 4px solid var(--accent); }
 .modal-head { padding: 16px 22px 4px; }
 .modal-head h2 { margin: 0; font-size: 16px; }
@@ -773,6 +773,10 @@ html[data-theme="dark"] body[data-mode="normal"] {
   --tone-done-strong: #60a5fa; /* 暗い背景では明るい青を文字色に */
   --tone-done-soft: #1a2c50;
 }
+/* 作成モーダルは自前の data-mode で色を切り替えるため、ダークでも同様に上書き
+   (背景系 --accent-soft/--accent-line と文字用 --accent-text)。完了バー色は不要。 */
+html[data-theme="dark"] .modal[data-mode="assist"] { --accent-soft: #0e2f24; --accent-line: #1f7a55; --accent-text: #34d399; }
+html[data-theme="dark"] .modal[data-mode="normal"] { --accent-soft: #16264d; --accent-line: #2953b8; --accent-text: #60a5fa; }
 /* 文字色の濃色直書きを、暗い背景で読める明るさに */
 html[data-theme="dark"] .tree-row .name.lv1 { color: #94a3b8; }
 html[data-theme="dark"] .tree-row .name.lv2 { color: #cbd5e1; }
