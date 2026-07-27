@@ -4,7 +4,8 @@
 
 ### 0-1. 対象と方式
 
-- 対象リポジトリ: `Neo-Oi/GanttChart`(配布物 `dist/index.html`。ソースは `src/` を `build.py` が連結)
+- 対象リポジトリ: `Neo-Oi/GanttChart`(配布物 兼 開発対象は単一の `index.html`)
+  - ※本試験の実施当時は `src/` を `build.py` で `dist/index.html` に連結する構成だった。その後 `src/`/`build.py`/`dist/` を廃止し1ファイル(`index.html`)に統合済み。本書のハーネス手順は現行の `index.html` ベースに更新してある(試験結果・判定などの記録内容はそのまま)。
 - 結合方式: **段階的結合 × ボトムアップ基調(実態はサンドイッチ)**
   - 方向は下位(依存の少ない基盤)から上位へ積み上げる。
   - ただし一部モジュールは相互依存/前方参照を持つため、純粋なボトムアップにはならず、**相互依存クラスタはまとめて結合し、必要箇所ではスタブを用いる**(理由は 0-4)。
@@ -26,7 +27,7 @@
 
 ### 0-4.【重要】ロード順(APP_FILES)と結合試験順は一致しない
 
-`build.py` の `APP_FILES` は「**連結して壊れない順序(ロード順)**」であって、「各モジュールが先行モジュールだけに依存するきれいな依存DAG」**ではない**。実コードには次の前方参照・相互依存がある(すべてソースで確認済み):
+`index.html` 末尾 `<script>` 内のモジュール連結順序(`// ===== app/xxx.js =====` 区切り。旧 `build.py` の `APP_FILES` に相当)は「**連結して壊れない順序(ロード順)**」であって、「各モジュールが先行モジュールだけに依存するきれいな依存DAG」**ではない**。実コードには次の前方参照・相互依存がある(すべてソースで確認済み):
 
 | 依存 | 実コード根拠 | 種別 |
 |---|---|---|
@@ -72,41 +73,25 @@
 DOM非依存の純粋関数は HTML 不要。依存を先に読み込んでから対象を評価する。
 
 ```bash
-# 例: holidays は util に依存するため両方を同一プロセスで読む
-node -e "$(cat src/app/util.js src/app/holidays.js); console.log(Holidays.countWorkingDays(new Date(2026,6,20), new Date(2026,6,31)))"
+# 純ロジック(util/holidays/state/schedules/dependencies)は index.html から抽出して評価する。
+# Tier1 の自動テスト(下記 付録E):
+node tests/run-tier1.js
+# 個別関数を確かめたいときは test-harness.html を http.server 経由で開き、DevTools Console で
+#   Holidays.countWorkingDays(new Date(2026,6,20), new Date(2026,6,31))
+# のように直接呼ぶ(ハーネスが index.html から純ロジックを読み込む)。
 ```
 
 > **Node が無い環境向けフォールバック**: `util`/`holidays` は `toast` を除き DOM/IndexedDB 非依存の純粋ロジックで、Node 固有APIも使っていない。したがって `node` が使えない場合は、2-2 のハーネスをブラウザで開き、DevTools Console で同じ公開関数(`uid()`・`Holidays.countWorkingDays(...)` 等)を直接呼べば段階1・2 を同一に検証できる。**(この試験環境も Node 未導入のため、実施は基本ブラウザ Console で行う。)**
 
-### 2-2. UI層(段階3以降): ブラウザ + フルDOMスケルトン
+### 2-2. UI層(段階3以降): ブラウザ + index.html 本体
 
-**重要**: `UI.openModal`/`renderTree`/`renderGantt`/`renderAssist` などは特定の要素ID(付録Bの約25個)を参照する。ハーネスには **`src/index.html` の `<body>` 内DOMスケルトン一式**を含めること(要素が欠けると `null.innerHTML` で落ちる)。最も確実なのは、`src/index.html` をコピーし、`<!-- BUILD:STYLES -->` を `<link rel="stylesheet" href="src/styles.css">` に、`<!-- BUILD:APP -->` を**段階順に増やす `<script src>` 群**に置き換える方法。
+`UI.openModal`/`renderTree`/`renderGantt`/`renderAssist` などは特定の要素ID(付録Bの約25個)を参照するため、フルDOMスケルトンが必要(要素が欠けると `null.innerHTML` で落ちる)。単一ファイル化後は **`index.html` 本体がそのフルDOMスケルトン + 全モジュールを備えている**ので、段階3以降(=DOMを要する結合)は `index.html` を直接開いて確認する。
 
-```html
-<!-- test-harness.html(リポジトリ直下に配置し、http.server 経由で開く) -->
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <link rel="stylesheet" href="src/styles.css">
-</head>
-<body data-mode="assist">
-  <!-- ↓ src/index.html の <body> 内マークアップ一式をそのまま貼る
-       (#appHeader / #treeList / #ganttHeader / #ganttBody / #assistGuide /
-        #progressStrip / #modalHost / #panelHost / #notesFloatHost /
-        #toastHost / #vscroll / #vscrollThumb など。付録B参照) -->
+> かつては `src/index.html` をコピーし `<script src>` を段階順に1本ずつ増やしてモジュールを切り分けていたが、`src/` を廃止し1ファイルに統合した現在、この「個別ファイル読み込みによる段階切り分け」はできない。**純ロジック**(段階1〜2 と、段階9の集計/採番/依存の純サブセット)の切り分けには `test-harness.html`(下記)を、**DOMを要する段階3以降**は `index.html` 本体を使う。
 
-  <!-- ↓ 試験する段階まで、下の順(4章)で1行ずつ増やす -->
-  <script src="src/app/util.js"></script>
-  <script src="src/app/holidays.js"></script>
-  <!-- 段階を進めるごとに追記 … -->
-</body>
-</html>
-```
+**`test-harness.html`(純ロジックのサンドボックス)**: `index.html` から `util`/`holidays`/`state`/`schedules`/`dependencies` のセクションだけを抽出して評価する軽量ページ。`http.server` 経由で開き(`http://localhost:8000/test-harness.html`)、DevTools Console で `uid()` / `Holidays.*` / `Schedules.*` / `Dependencies.*` を直接呼ぶ。`#toastHost` のみ持つ最小DOMなので、DOMを要する描画系(段階3以降)はここでは扱わない。
 
-> **配信**: ハーネスは**リポジトリ直下**に置き、リポジトリ直下で `python3 -m http.server 8000` を起動して `http://localhost:8000/test-harness.html` を開く(CLAUDE.md の `dist/` 配信は段階15=`dist/index.html` 用で別物)。`<body>` は `src/index.html` の `<body>` をそのまま流用すれば付録Bの全IDが漏れなく揃う(手貼りより確実)。
-
-> 補足: `dist/index.html` は全モジュールを連結済みのため、それ自体は「全結合(段階15相当)」の確認にそのまま使える。段階1〜14の切り分けにのみ本ハーネスを使う(段階15=`main.js` は `dist/index.html` での実画面操作)。
+> **配信**: リポジトリ直下で `python3 -m http.server 8000` を起動し、`index.html`(全結合=段階15相当)または `test-harness.html`(純ロジック)を開く。全データは IndexedDB に入るため `file://` ではなく HTTP 経由で開くこと。
 
 ---
 
@@ -405,7 +390,7 @@ node -e "$(cat src/app/util.js src/app/holidays.js); console.log(Holidays.countW
 
 ## 付録B: ハーネスの `<body>` に含めるべき要素ID(実測)
 
-これは「ハーネスの `<body>` スケルトンに静的配置すべきIDの棚卸し一覧」である。下記24個のうち、`#appHeader` 以外の23個は `getElementById`/`querySelector` で直接参照され、欠けると `null.innerHTML` で落ちる。`#appHeader` はどのモジュールからも参照されない純粋なレイアウトコンテナだが、`src/index.html` の `<body>` をそのまま流用すれば自然に含まれる。
+これは「フルDOMスケルトンに静的配置されているべきIDの棚卸し一覧」である。下記24個のうち、`#appHeader` 以外の23個は `getElementById`/`querySelector` で直接参照され、欠けると `null.innerHTML` で落ちる。`#appHeader` はどのモジュールからも参照されない純粋なレイアウトコンテナだが、`index.html` の `<body>` に含まれている。
 
 `#appHeader`(レイアウトのみ・コード非参照) `#projectSelect` `#newProjectBtn` `#notesBtn` `#projectMenuBtn` `#modeToggle` `#addScheduleBtn` `#addMilestoneBtn` `#granularityToggle` `#undoBtn` `#historyBtn` `#exportBtn` `#themeBtn` `#progressStrip` `#treeList` `#ganttHeader` `#ganttBody` `#assistGuide` `#vscroll` `#vscrollThumb` `#modalHost` `#panelHost` `#notesFloatHost` `#toastHost`
 
@@ -462,17 +447,15 @@ Schedules.renderTree(); Gantt.renderGantt();
 
 DOM/IndexedDB に依存しない純ロジック(段階1・2・3、および段階9の集計/採番/依存の純サブセット)を自動化した。ハーネスは `tests/tier1-tests.js`。
 
-**方式**: `build.py` と同様に `src/app/util.js` `holidays.js` `state.js` `schedules.js` `dependencies.js` を連結し、末尾に本ハーネス(最小 `ok`/`eq` アサーション)を付けて1本のスクリプトとして評価する。`state`/`uiState`(グローバル `const`)にテストデータを載せ、公開関数の戻り値を検証する。前方参照(History/Dependencies/DB/UI 等)を呼ぶ経路は含めない。
+**方式**: `tests/run-tier1.js` が `index.html` から `util`/`holidays`/`state`/`schedules`/`dependencies` のセクション(`// ===== app/xxx.js =====` 区切り)を抽出して連結し、末尾に本ハーネス(`tests/tier1-tests.js`。最小 `ok`/`eq` アサーション)を付けて1本のスクリプトとして評価する。`state`/`uiState`(グローバル `const`)にテストデータを載せ、公開関数の戻り値を検証する。前方参照(History/Dependencies/DB/UI 等)を呼ぶ経路は含めない。
 
 **実行コマンド(リポジトリ直下)**:
 
 ```bash
-cat src/app/util.js src/app/holidays.js src/app/state.js \
-    src/app/schedules.js src/app/dependencies.js tests/tier1-tests.js > /tmp/_run.js
-node /tmp/_run.js          # ← node が無ければ dist/index.html を開き Console にテスト本体を貼付(同一結果)
+node tests/run-tier1.js          # ← node が無ければ test-harness.html を開き Console にテスト本体を貼付(同一結果)
 ```
 
-**結果**: **51 アサーション / 51 PASS(0 fail)**。実行環境 Node v20.18.1、実行日 2026-07-21。
+**結果**: **51 アサーション / 51 PASS(0 fail)**。当初実施 Node v20.18.1・2026-07-21。単一ファイル化後 `node tests/run-tier1.js`(Node v24)で再確認し、同 51 PASS。
 
 **カバー範囲(自動)**:
 - 段階1: 1-1〜1-9(`uid`/`escapeHtml`/`parseDate` 桁上がり含む/`fmtDate`/`dayDiff`/`addDays`/`isWeekend`/`periodWithinYears`/`renderMarkdownSafe`)+ `addYears`/`fmtRangeLabel`/`todayDate`

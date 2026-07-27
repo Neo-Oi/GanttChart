@@ -4,10 +4,9 @@
 // 前方参照しない純関数」だけを対象にする(toast・DB・描画・レイアウトは対象外)。
 //
 // 実行方法(どちらでも同一結果):
-//  (A) Node: リポジトリ直下で
-//      cat src/app/util.js src/app/holidays.js src/app/state.js \
-//          src/app/schedules.js src/app/dependencies.js tests/tier1-tests.js > /tmp/_run.js && node /tmp/_run.js
-//  (B) ブラウザ Console: dist/index.html を開き、本ファイルの ok/eq 以降のテスト本体を貼り付けて実行
+//  (A) Node: リポジトリ直下で  node tests/run-tier1.js
+//      (ランナーが index.html から util〜dependencies のセクションを抽出し本ファイルを評価する)
+//  (B) ブラウザ Console: index.html を開き、本ファイルの ok/eq 以降のテスト本体を貼り付けて実行
 //      (util〜dependencies は既に読み込まれているため、先頭の連結は不要)
 //
 // 期待: SUMMARY pass=51 fail=0 (ALL PASS)。詳細は INTEGRATION_TEST.md 付録E。
