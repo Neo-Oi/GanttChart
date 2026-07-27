@@ -4,37 +4,44 @@
 
 ## これは何か
 
-GanttChart は、**単一の自己完結した `.html` ファイル**として配布される、ローカルファーストのガントチャート/プロジェクト計画ツールです。バックエンドなし、ビルド時フレームワークなし、実行時の外部ネットワーク通信なし — 全データはブラウザの IndexedDB に保存されます。配布物は `dist/index.html` で、`src/` 配下のファイルを連結して生成されます。
+GanttChart は、**単一の自己完結した `.html` ファイル**として配布される、ローカルファーストのガントチャート/プロジェクト計画ツールです。バックエンドなし、ビルド時フレームワークなし、実行時の外部ネットワーク通信なし — 全データはブラウザの IndexedDB に保存されます。配布物であり、かつ開発中に直接編集する対象でもあるのが、リポジトリ直下の単一 `index.html` です。ビルドステップはありません(以前は `src/` を `build.py` で `dist/index.html` に連結していましたが、廃止し1ファイルに統合しました)。
 
 機能仕様と確定済みの設計判断はこのリポジトリの `SPEC.md` にあります。アーキテクチャ変更を行う前に読んでください — 単に何を作るかだけでなく、*なぜ*このような構造になっているかが記載されています。
 
 ## コマンド
 
 ```bash
-python3 build.py                      # src/ を連結して dist/index.html を生成する
-python3 -m http.server 8000           # dist/ から、ビルド済みアプリを配信する
+python3 -m http.server 8000           # リポジトリ直下からアプリを配信する → http://localhost:8000/
+node tests/run-tier1.js               # Tier1 自動テスト(任意。node があるときのみ)
 ```
 
-`file://` ではなく HTTP 経由で配信してください — 一部のブラウザでは `file://` オリジン下で IndexedDB の挙動が不安定になります。このプロジェクトに npm/Node のツールチェーンはありません(Nodeがインストールされている前提を置いていません)。`build.py` は意図的に Python 3 標準ライブラリ(`pathlib`)のみを使っているため、依存関係のインストール手順は存在しません。
+`file://` ではなく HTTP 経由で開いてください — 一部のブラウザでは `file://` オリジン下で IndexedDB の挙動が不安定になります。**ビルドステップはありません**: `index.html` は自己完結した単一ファイルで、そのまま配信・配布できます。アプリ本体に npm/Node のツールチェーンは不要です(実行時の外部依存もなし)。Tier1 テストランナー(`tests/run-tier1.js`)だけは node を使いますが、あくまで任意です。
 
-lint・テストスイートはまだ設定されていません。
+lint スイートはまだ設定されていません。テストは `tests/` 配下(下記「テスト」参照)。
 
-**開発ループ:** `src/` 配下のファイルを編集し、`python3 build.py` を再実行してから、`dist/index.html` を開いているブラウザタブを更新してください。`build.py` は単純な文字列連結スクリプトで、ウォッチモードもバンドル/トランスパイルも行いません — 設定すべきことは何もありません。
+**開発ループ:** `index.html` を直接編集し、開いているブラウザタブを更新するだけです。ビルドもウォッチも連結もありません。アプリの JS は `index.html` 末尾の1つの `<script>` ブロックに、旧モジュール境界を `// ===== app/xxx.js =====` コメントで区切って収めてあります — 編集時はこの区切りを目印にしてください。
 
 ## アーキテクチャ
 
-### ビルド: 複数のソースファイル → 1つの配布ファイル
+### 単一ファイルの構成
 
-`src/index.html` には、`build.py` が順に置き換える3つのプレースホルダーコメントがあります:
-- `<!-- BUILD:STYLES -->` → `src/styles.css` を `<style>` ブロックにインライン化
-- `<!-- BUILD:VENDOR -->` → `build.py` の `VENDOR_FILES` に列挙された各ファイルを、ベンダーライブラリごとに1つの `<script>` タグとしてインライン化(現時点では空 — `marked`/`jsPDF`/SheetJS のようなサードパーティライブラリは、後のフェーズで `src/vendor/` にベンダリングされこのリストに追加される。CDNからの読み込みは行わない)
-- `<!-- BUILD:APP -->` → `build.py` の `APP_FILES` をすべて1つの `<script>` ブロックに連結
+アプリ全体が1つの `index.html` に収まっています。上から順に:
+- `<head>` 内の `<style>` ブロック — 旧 `styles.css` の内容をそのままインライン化したもの。
+- `<body>` 冒頭の小さな `<script>` — テーマ(ダーク/ライト)を描画前に復元するだけのブートストラップ。触ることはほぼない。
+- `<body>` 内のマークアップ — ヘッダー・ツリー・ガント・各ホスト要素の DOM スケルトン。
+- `<body>` 末尾の `<script>` ブロック — アプリの JS 全体。旧 `*.js` の各モジュールを **依存順** に連結したもので、`// ===== app/xxx.js =====` というコメントで各モジュールの境界を示している。
 
-**ファイルの読み込み順序は `build.py` 内の明示的な配列(`APP_FILES`)で決まり、ディレクトリ/globの順序ではありません。** 新しい `src/app/*.js` モジュールを追加する際は、依存関係の順序でこの配列に追加する必要があります(state/db は、それらを利用するモジュールより前に。`main.js` は `DOMContentLoaded` で全体を配線するため最後)。
+**このドキュメントで以降 `xxx.js`(例: `state.js`、`gantt.js`)と書くのは、この末尾 `<script>` 内の `// ===== app/xxx.js =====` セクションを指す。** 連結順序は依存関係順で、`util.js` → `holidays.js` → `db.js` → `state.js` → `ui.js` → `projects.js` → `notes.js` → `schedules.js` → `dependencies.js` → `tasks.js` → `milestones.js` → `gantt.js` → `assist.js` → `exportimport.js` → `history.js` → `main.js`。`main.js` は `DOMContentLoaded` で全体を配線するため必ず最後。新しいモジュール相当のコードを足すときは、それを利用するコードより前(state/db 系はさらに前)に置くこと。
+
+サードパーティライブラリは CDN から読み込まず、必要になったらこの `<script>` 群にインラインでベンダリングする方針(現時点では未使用)。実行時の外部ネットワーク通信は一切ない。
+
+### テスト
+
+`tests/tier1-tests.js` が Tier1 の純ロジック検証(util/holidays/state/schedules/dependencies の DOM/IndexedDB 非依存な純関数)を持つ。`tests/run-tier1.js` が `index.html` からこれらのセクションを抽出して評価し、`node tests/run-tier1.js` で実行できる(期待: `pass=51 fail=0`)。ブラウザで手動確認したいときは `test-harness.html` を HTTP 経由で開く — これも `index.html` から純ロジックを抽出して読み込む Console サンドボックスで、全結合(旧「段階15」)の確認は `index.html` 本体を直接開いて行う。詳細な段階分けは `INTEGRATION_TEST.md`(結合試験の記録)を参照。
 
 ### 状態管理: 1つの共有可変ストアと、タグスコープのpub/sub
 
-`src/app/state.js` は2つのグローバルオブジェクトを定義します:
+`state.js` は2つのグローバルオブジェクトを定義します:
 - `state` — *現在選択中*のプロジェクトのドメインデータ(`projects` 一覧、`project`、`schedules`、`milestones`、`dependencies`、`history`)。プロジェクト切り替えのたびにIndexedDBから完全に再読み込みされます。個人プロジェクト規模のレコード数を前提とし、パーティション化/ページネーションはしていません。
 - `uiState` — トランジェントなUI専用状態(`selectedId`、`collapsed`(ツリー折りたたみ)、`granularity`、`undoStack`)。ドメインデータの再レンダリングが選択・折りたたみ・粒度・undo履歴を消さないよう、`state` とは分離されています。
 
@@ -42,9 +49,9 @@ lint・テストスイートはまだ設定されていません。
 
 ### 永続化: IndexedDB、単一DB、隣接リスト方式のスケジュールツリー
 
-`src/app/db.js` は単一の `ganttchart` データベースを開き、ドメインごとに1つのオブジェクトストア(`projects`、`schedules`、`milestones`、`dependencies`、`comments`、`notes`、`historyLog`)+ 選択中プロジェクトIDなどを保持する `meta` ストアを持ち、ドメインストアはすべて `projectId` でインデックスされています。変更は他の場所で場当たり的に生のトランザクションを開くのではなく、すべて `DB.put(store, record, historyMeta?)` / `DB.remove(store, id, historyMeta?)`(および複数削除用の `DB.bulkRemove(store, ids)`)を経由させてください — `put`/`remove` は変更履歴のロギングも担っており(後述)、これをバイパスすると変更が黙って履歴に記録されなくなります。
+`db.js` は単一の `ganttchart` データベースを開き、ドメインごとに1つのオブジェクトストア(`projects`、`schedules`、`milestones`、`dependencies`、`comments`、`notes`、`historyLog`)+ 選択中プロジェクトIDなどを保持する `meta` ストアを持ち、ドメインストアはすべて `projectId` でインデックスされています。変更は他の場所で場当たり的に生のトランザクションを開くのではなく、すべて `DB.put(store, record, historyMeta?)` / `DB.remove(store, id, historyMeta?)`(および複数削除用の `DB.bulkRemove(store, ids)`)を経由させてください — `put`/`remove` は変更履歴のロギングも担っており(後述)、これをバイパスすると変更が黙って履歴に記録されなくなります。
 
-スケジュールの階層(スケジュール → サブスケジュール → タスク、末端まで最大3階層。SPEC.md 4.3参照)は**隣接リスト**(`parentId` + 兄弟の `order` 整数)で表現されており、実体化されたパス文字列ではありません。表示用の番号("1.2.3")は*決して保存されず*、`Schedules.computeNumbering()` / `Schedules.flattenForDisplay()`(`src/app/schedules.js` 内)が毎回のレンダリング時に `parentId`/`order` から都度計算するため、スケジュールの削除・並べ替えの際に他の兄弟の番号を振り直す必要はありません。タスクは独立したオブジェクトストアを持たず、`schedules` ストア内の子を持たない末端ノードとして表現します(SPEC.md 4.3で確定済み)。
+スケジュールの階層(スケジュール → サブスケジュール → タスク、末端まで最大3階層。SPEC.md 4.3参照)は**隣接リスト**(`parentId` + 兄弟の `order` 整数)で表現されており、実体化されたパス文字列ではありません。表示用の番号("1.2.3")は*決して保存されず*、`Schedules.computeNumbering()` / `Schedules.flattenForDisplay()`(`schedules.js` 内)が毎回のレンダリング時に `parentId`/`order` から都度計算するため、スケジュールの削除・並べ替えの際に他の兄弟の番号を振り直す必要はありません。タスクは独立したオブジェクトストアを持たず、`schedules` ストア内の子を持たない末端ノードとして表現します(SPEC.md 4.3で確定済み)。
 
 ### 変更履歴のロギング
 
@@ -58,7 +65,7 @@ lint・テストスイートはまだ設定されていません。
 
 ### レンダリングパターン
 
-フレームワークも仮想DOMもありません。各パネルは `container.innerHTML = templateString(...)` による全置換です(`src/app/schedules.js#renderTree`、`src/app/gantt.js#renderGantt` が参考例)。ガントのスクロール位置は、innerHTML を置換する `#ganttBody` 自体がスクロールコンテナなので再レンダリングでリセットされ得ますが、パン/ズーム相当は粒度(`uiState.granularity`)で制御しているため実害は小さめです。`Store.setState`/`setUiState` はタグに購読したレンダー関数だけを呼び、全面更新が必要なとき(プロジェクト切替・undo など)は `Store.renderAll()` を使います。
+フレームワークも仮想DOMもありません。各パネルは `container.innerHTML = templateString(...)` による全置換です(`schedules.js#renderTree`、`gantt.js#renderGantt` が参考例)。ガントのスクロール位置は、innerHTML を置換する `#ganttBody` 自体がスクロールコンテナなので再レンダリングでリセットされ得ますが、パン/ズーム相当は粒度(`uiState.granularity`)で制御しているため実害は小さめです。`Store.setState`/`setUiState` はタグに購読したレンダー関数だけを呼び、全面更新が必要なとき(プロジェクト切替・undo など)は `Store.renderAll()` を使います。
 
 **落とし穴: mousedown で掴んだ要素への参照を、その後の再描画をまたいで使わない。** `innerHTML` 全置換は子要素を作り直すため、`mousedown` ハンドラで捕まえた DOM 参照(例: ガントバー)に対して、同期的に `render*()`(`innerHTML` を差し替える系)を呼んでしまうと、その参照は直後に親を失った(`parentElement === null`)要素になり、以後スタイルを変更しても画面には一切反映されません。バーのドラッグ開始(`Gantt.beginDrag`)がまさにこれで壊れていたことがあります(`main.js#wireGantt` の mousedown ハンドラが `selectNode()`→`Gantt.renderGantt()` を先に呼んでいた)。掴んだ要素をその後操作する処理の前には、その要素を含むコンテナの `innerHTML` 差し替えを挟まないこと。`Gantt.js` にはドラッグ中 `renderGantt()` を no-op にする `isDragging` フラグもあり、ドラッグ中に外部要因(undo、他のドラッグの非同期完了など)で再描画が走っても同じ理由で壊れないようにしています。
 
@@ -66,11 +73,11 @@ lint・テストスイートはまだ設定されていません。
 
 ### ガントの日付・スケール計算
 
-`src/app/gantt.js` は日付↔ピクセルの変換(`computeDateScale`、`dateToX`/`xToDate`)をすべて一箇所に集約しており、印刷(PDF/画像)経路も画面と同じレイアウト計算を再利用します。目盛りの粒度(日/週/月/四半期。ヘッダーの粒度セレクターで切り替え)は、どのグリッド線・ラベルを描くかに加えて **`pxPerDay` も変える**(日=30px 〜 四半期=3.5px)ので、長期プロジェクトを俯瞰できます(SPEC.md 15章)。バーのドラッグ(移動/端リサイズ)は `Gantt.beginDrag` が担当し、ドロップ確定時に `Schedules.updateDates` 経由で永続化+依存の自動リスケジュールを行います。
+`gantt.js` は日付↔ピクセルの変換(`computeDateScale`、`dateToX`/`xToDate`)をすべて一箇所に集約しており、印刷(PDF/画像)経路も画面と同じレイアウト計算を再利用します。目盛りの粒度(日/週/月/四半期。ヘッダーの粒度セレクターで切り替え)は、どのグリッド線・ラベルを描くかに加えて **`pxPerDay` も変える**(日=30px 〜 四半期=3.5px)ので、長期プロジェクトを俯瞰できます(SPEC.md 15章)。バーのドラッグ(移動/端リサイズ)は `Gantt.beginDrag` が担当し、ドロップ確定時に `Schedules.updateDates` 経由で永続化+依存の自動リスケジュールを行います。
 
 ### モーダル
 
-`src/app/ui.js#openModal(html, {onSubmit})` が共有のモーダルホストです — 呼び出しのたびに `#modalHost` の中身を完全に置き換えるため、モーダル本体の*内部*の要素にリスナーをアタッチしても安全です。`onSubmit` が `false` を返すとモーダルは開いたままになります(インラインのバリデーションエラー表示に使用)。それ以外を返すと、非同期のDB書き込みが実際に解決する前に即座に閉じます。
+`ui.js#openModal(html, {onSubmit})` が共有のモーダルホストです — 呼び出しのたびに `#modalHost` の中身を完全に置き換えるため、モーダル本体の*内部*の要素にリスナーをアタッチしても安全です。`onSubmit` が `false` を返すとモーダルは開いたままになります(インラインのバリデーションエラー表示に使用)。それ以外を返すと、非同期のDB書き込みが実際に解決する前に即座に閉じます。
 
 ### モード(アシスト / ノーマル)
 
@@ -90,4 +97,4 @@ lint・テストスイートはまだ設定されていません。
 
 `project.notesMd` にプロジェクト単位のMarkdownメモ(タスクの洗い出し・下書き用)を1つ持つ。`notes` ストア(projectId索引、複数メモ用に確保していたもの)は使わず、シンプルにプロジェクトレコード自身のフィールドとして持つ設計にした——1プロジェクトにつき1つのメモで十分なため。Markdownの変換は `util.js#renderMarkdownSafe` が担う——外部ライブラリを使わない方針のため、見出し/箇条書き・チェックリスト/太字・斜体・コード程度に絞った最小限の自前実装で、各行を必ず `escapeHtml` してから記法を変換するため安全(メモにHTMLタグを書いても実行されない)。履歴追跡(`HISTORY_DOMAINS`)の対象外。`Schedules.openEditor`(スケジュール/サブスケジュール/タスクの追加・編集モーダル)には内容がある場合だけ「プロジェクトメモを見る」の折りたたみ参考表示が出る。
 
-メモ編集自体は `NotesPanel`(`src/app/notes.js`)が担うが、`#modalHost`/`#panelHost`(背景を全画面ブロックするオーバーレイ)は使わず、右下にドッキングする非モーダルな浮遊パネル(`#notesFloatHost`、バックドロップなし・リサイズ可)として実装している——「開いたまま他の操作(スケジュール追加やドラッグなど)を続けたい」という要望のため。`#notesFloatHost` は `#modalHost`/`#panelHost` より前にDOM順で置き、あえてz-indexを付けていない: モーダル/サイドパネルには明示的な `z-index` があるため、開いたときは自然にそちらが手前に来る。他の操作による全体再描画(`Store.renderAll()`)のたびにメモの中身を作り直すと入力中の未保存テキストが消えてしまうため、`NotesPanel` は「開いているプロジェクトのIDが変わった/初めて開いた」ときだけ内容を組み立て直す(`builtForProjectId`)。新しい非モーダルUIを追加するときはこのパターン(バックドロップなし・DOM順で手前/奥を決める・全体再描画で中身を壊さないための差分ガード)を参考にする。
+メモ編集自体は `NotesPanel`(`notes.js`)が担うが、`#modalHost`/`#panelHost`(背景を全画面ブロックするオーバーレイ)は使わず、右下にドッキングする非モーダルな浮遊パネル(`#notesFloatHost`、バックドロップなし・リサイズ可)として実装している——「開いたまま他の操作(スケジュール追加やドラッグなど)を続けたい」という要望のため。`#notesFloatHost` は `#modalHost`/`#panelHost` より前にDOM順で置き、あえてz-indexを付けていない: モーダル/サイドパネルには明示的な `z-index` があるため、開いたときは自然にそちらが手前に来る。他の操作による全体再描画(`Store.renderAll()`)のたびにメモの中身を作り直すと入力中の未保存テキストが消えてしまうため、`NotesPanel` は「開いているプロジェクトのIDが変わった/初めて開いた」ときだけ内容を組み立て直す(`builtForProjectId`)。新しい非モーダルUIを追加するときはこのパターン(バックドロップなし・DOM順で手前/奥を決める・全体再描画で中身を壊さないための差分ガード)を参考にする。

@@ -1,7 +1,41 @@
-   <!doctype html>
-   <html>
-   <body>
-     <div id="toastHost"></div>
-     <script src="src/app/util.js"></script>
-   </body>
-   </html>
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <title>GanttChart test harness</title>
+  <style>body{font:14px/1.6 system-ui,sans-serif;margin:2rem;max-width:60rem}code{background:#eee;padding:.1em .3em;border-radius:3px}</style>
+</head>
+<body>
+  <div id="toastHost"></div>
+  <h1>GanttChart 手動テストハーネス</h1>
+  <p>単一の <code>index.html</code> から純ロジック(<code>util / holidays / state / schedules / dependencies</code>)だけを抽出して読み込む、DOM 非依存のサンドボックスです。DevTools の Console で <code>uid()</code> / <code>Schedules.*</code> / <code>Dependencies.*</code> などを直接叩けます(段階1〜14 の切り分け用)。全結合(段階15)は <code>index.html</code> 本体を直接開いて確認してください。</p>
+  <p><strong>必ず HTTP 経由で開くこと</strong>(<code>python3 -m http.server 8000</code> → <code>http://localhost:8000/test-harness.html</code>)。<code>file://</code> では <code>fetch</code> が失敗します。</p>
+  <p id="status">読み込み中…</p>
+  <script>
+  (async () => {
+    const statusEl = document.getElementById('status');
+    try {
+      const html = await (await fetch('index.html')).text();
+      // index.html 内の <script> のうち、モジュール区切りを含むアプリ本体ブロックを取り出す。
+      const appScript = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+        .map((m) => m[1])
+        .find((s) => s.includes('// ===== app/'));
+      if (!appScript) throw new Error('アプリ本体の <script> ブロックが見つかりません');
+      // 「\n// ===== app/xxx.js =====\n」でセクション分割('=' 5 個。util.js 内の 4 個には誤マッチしない)
+      const parts = appScript.split(/\n\/\/ ===== (app\/\S+) ===== *\n/);
+      const sections = {};
+      for (let i = 1; i < parts.length; i += 2) sections[parts[i]] = parts[i + 1];
+      const NEEDED = ['app/util.js', 'app/holidays.js', 'app/state.js', 'app/schedules.js', 'app/dependencies.js'];
+      const code = NEEDED.map((n) => sections[n] || '').join('\n');
+      // 間接 eval でグローバルスコープに評価 → Console から素の識別子で参照できる。
+      (0, eval)(code);
+      statusEl.textContent = '準備完了: util / holidays / state / schedules / dependencies を読み込みました。Console で試してください。';
+      console.log('[harness] ready: util/holidays/state/schedules/dependencies loaded from index.html');
+    } catch (e) {
+      statusEl.textContent = '読み込み失敗: ' + e.message + '(HTTP 経由で開いているか確認してください)';
+      console.error(e);
+    }
+  })();
+  </script>
+</body>
+</html>
