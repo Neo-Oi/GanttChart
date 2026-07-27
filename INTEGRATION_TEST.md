@@ -25,7 +25,7 @@
 - **単体試験を実施しない方針**のため、不具合が出たら「直前に足したモジュールが原因」と切り分けられる段階的結合が有効。
 - **完成済みコードが対象**。したがって本書は「開発と並行して積み上げる」ものではなく、「完成品をあえて分解し、下位から1段階ずつ結合し直して検証する(後追いの段階的結合試験)」ものである。完成品を丸ごと(ビッグバン的に)試験すると切り分けができないため、あえて段階的に行う。
 
-### 0-4.【重要】ロード順(APP_FILES)と結合試験順は一致しない
+### 0-4.【重要】連結順(ロード順)と結合試験順は一致しない
 
 `index.html` 末尾 `<script>` 内のモジュール連結順序(`// ===== app/xxx.js =====` 区切り。旧 `build.py` の `APP_FILES` に相当)は「**連結して壊れない順序(ロード順)**」であって、「各モジュールが先行モジュールだけに依存するきれいな依存DAG」**ではない**。実コードには次の前方参照・相互依存がある(すべてソースで確認済み):
 
@@ -39,7 +39,7 @@
 
 上記の前方参照を持つモジュール(`DB`/`Projects`/`Schedules`/`Milestones`/`Dependencies`)はいずれも `const X = (() => {…})()` の IIFE で本体を包んでおり、外部モジュール参照は関数本体=**呼び出し時**にのみ評価されるため**ロード時には壊れない**(`util.js` の各ヘルパーと `main.js` の `init` 等は前方参照を持たない素のグローバル宣言、`state.js` は `state`/`uiState` がグローバル `const` で `Store` のみ IIFE)。唯一のロード時制約は `holidays.js` が IIFE 本体で `parseDate` を呼ぶ点(=util を先に読む必要、`holidays.js:42`)。しかし前方参照を持つモジュールの**書き込み系関数を実際に呼んだ瞬間**に、未ロードモジュールを参照して `ReferenceError` になる。
 
-したがって本書の結合試験順は、**`APP_FILES` のロード順ではなく、実行時の依存グラフから導出した順序**(4章)を用いる。導出の結果、前方参照は「基盤モジュールの並べ替え」でほぼ解消でき、**残る唯一の循環は `schedules ⇄ dependencies`** である。この2つは片方だけを先に固めることが原理的にできないため、**同一段階でペアとして結合・試験する**。
+したがって本書の結合試験順は、**連結順(ロード順)ではなく、実行時の依存グラフから導出した順序**(4章)を用いる。導出の結果、前方参照は「基盤モジュールの並べ替え」でほぼ解消でき、**残る唯一の循環は `schedules ⇄ dependencies`** である。この2つは片方だけを先に固めることが原理的にできないため、**同一段階でペアとして結合・試験する**。
 
 ### 0-5. スタブ/ドライバの扱い
 
@@ -115,7 +115,7 @@ node tests/run-tier1.js
 
 ## 4. 結合段階一覧(実行時依存グラフから導出)
 
-`APP_FILES`(ロード順)との差分は付録Aに対応表を置く。要点は **(1) `state` を `db` より前に読む(前方参照 db→state を解消)、(2) `history` を `schedules` より前に読む(前方参照 schedules→History を解消)、(3) `schedules` と `dependencies` は循環のため同一段階、(4) `gantt` を `milestones` より前に読む(前方参照 milestones→Gantt を解消)**、の4点(詳細は付録A)。
+連結順(ロード順)との差分は付録Aに対応表を置く。要点は **(1) `state` を `db` より前に読む(前方参照 db→state を解消)、(2) `history` を `schedules` より前に読む(前方参照 schedules→History を解消)、(3) `schedules` と `dependencies` は循環のため同一段階、(4) `gantt` を `milestones` より前に読む(前方参照 milestones→Gantt を解消)**、の4点(詳細は付録A)。
 
 | 段階 | 追加モジュール | 主な役割 | 前方参照の解消状況 | 実施方法 |
 |---|---|---|---|---|
@@ -380,9 +380,9 @@ node tests/run-tier1.js
 
 ---
 
-## 付録A: ロード順(APP_FILES)と試験順の対応
+## 付録A: 連結順(ロード順)と試験順の対応
 
-| APP_FILES(ロード順) | 本書の試験段階 | 差分の理由 |
+| 連結順(ロード順) | 本書の試験段階 | 差分の理由 |
 |---|---|---|
 | util → holidays → db → state → ui → projects → notes → schedules → dependencies → tasks → milestones → gantt → assist → exportimport → history → main | util → holidays → **state → db** → ui → notes → projects → **history** → **schedules+dependencies** → tasks → gantt → milestones → assist → exportimport → main | (1) state を db より前(db→state 前方参照の解消) (2) history を schedules より前(schedules→History の解消) (3) schedules と dependencies は循環のため同段階 (4) gantt を milestones より前(milestones→Gantt の解消) (5) notes と projects は相互に非依存のため順序は任意(本書は notes を先に置いたが依存上の要請ではない) |
 
@@ -472,7 +472,7 @@ node tests/run-tier1.js          # ← node が無ければ test-harness.html �
 ## 改訂履歴
 
 - 本版: 実コード(全16モジュール)と突き合わせて作成。主な確定事項と前版からの修正:
-  - **方式**: 「純粋ボトムアップ」→「サンドイッチ基調のボトムアップ」に修正。`APP_FILES`(ロード順)と結合試験順を分離し、前方参照(db→state, schedules→History, milestones→History/Gantt, projects→Assist)と循環(schedules⇄dependencies)を明示(0-4)。試験順を実行時依存グラフから導出し直した(4章・付録A)。
+  - **方式**: 「純粋ボトムアップ」→「サンドイッチ基調のボトムアップ」に修正。連結順(ロード順)と結合試験順を分離し、前方参照(db→state, schedules→History, milestones→History/Gantt, projects→Assist)と循環(schedules⇄dependencies)を明示(0-4)。試験順を実行時依存グラフから導出し直した(4章・付録A)。
   - **ハーネス**: 必要要素IDが約25個あることを実測し、フルDOMスケルトンの流用を明記(2章・付録B)。
   - **履歴の上限**: メモリの undo(`MAX=40`)と永続履歴の間引き(`HISTORY_MAX=80`)は別物である点を明記し、後者の試験(8-6)を追加(5章)。
   - **履歴機能**: `restoreTo`(各時点復元)と `openPanel` の項目を追加(8-4/8-5)。
